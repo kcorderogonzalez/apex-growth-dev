@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: growthskope-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: growthskope
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: growthskope-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  firestore:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: growthskope-firestore
+    restart: unless-stopped
+    command: >
+      gcloud emulators firestore start
+      --host-port=0.0.0.0:8080
+      --project=local-project
+    ports:
+      - "8080:8080"
+    environment:
+      CLOUDSDK_CORE_PROJECT: local-project
+
+  firebase-auth:
+    image: gcr.io/firebase-tools-docker/firebase-tools:latest
+    container_name: growthskope-firebase-auth
+    restart: unless-stopped
+    command: firebase emulators:start --only auth --project local-project
+    ports:
+      - "9099:9099"
+      - "4000:4000"
+    volumes:
+      - ./firebase.json:/app/firebase.json
+      - firebase_data:/app/.firebase
+
+volumes:
+  postgres_data:
+  firebase_data:
