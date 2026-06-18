@@ -81,7 +81,7 @@ export default function PipelineGenScreen({ onLaunchHunter }: PipelineGenScreenP
   const markReviewed = (id: string) => {
     setReviewedIds(prev => {
       const next = new Set(prev);
-      next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       saveReviewed(next);
       return next;
     });

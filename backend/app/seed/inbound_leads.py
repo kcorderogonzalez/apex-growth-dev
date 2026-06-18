@@ -408,6 +408,39 @@ def _quality_score(lead: dict, tier: str) -> float:
     return round(min(max(base, 0.05), 1.0), 2)
 
 
+# Sources that flow through Marketo (digital/marketing-tracked)
+MARKETO_SOURCES = {"WEB_FORM", "CONTENT_DOWNLOAD", "SOCIAL", "MARKETING_EVENT"}
+
+def _marketo_signal(rng: random.Random, tier: str, source: str) -> tuple[str | None, str | None]:
+    """Return (marketo_signal, marketo_program) for leads originating from Marketo.
+
+    Signal grid — letter = ICP fit (A=Top ICP → F=Junk), number = activity (1=High → 5=None).
+      A1 Top ICP / High Activity    A4 Top ICP / Minimal Activity   A5 Top ICP / No Activity
+      C3 Minimum ICP+Activity threshold
+      E1 Non-ICP / High Activity    F1 Junk / High Activity         F5 Non-ICP / No Activity
+    """
+    # all sources get a signal; MARKETO_SOURCES only affects program name selection
+
+    signal_pools = {
+        "RSM_READY":    ["A1", "A1", "A2", "B1", "B2", "A3"],
+        "SDR_WORTHY":   ["B2", "B3", "C2", "C3", "C1", "B1", "C3"],
+        "INTERNATIONAL":["C3", "D2", "D3", "C4", "D4", "C3"],
+        "TOO_SMALL":    ["D4", "D5", "E4", "E5", "D3", "E3"],
+        "JUNK":         ["F1", "F2", "F3", "E1", "F5", "E5", "F4"],
+        "DUPLICATE":    ["B2", "C3", "D3", "C2", "B3"],
+    }
+    signal = rng.choice(signal_pools.get(tier, ["C3"]))
+
+    programs = {
+        "WEB_FORM":         ["Netskope.com - Demo Request Form", "Netskope.com - Contact Sales Form", "Netskope.com - Free Trial", "Netskope.com - Get Started"],
+        "CONTENT_DOWNLOAD": ["ZTNA Buyer's Guide - Gated", "SSE Market Report 2026 - Gated", "Zero Trust Whitepaper - Gated", "Data Security Playbook - Gated", "SASE for Dummies - Gated"],
+        "SOCIAL":           ["LI - ZTNA Awareness Q2 2026", "LI - SSE Retargeting Q2 2026", "LI - Executive ABM Campaign", "LI - SASE Mid-Market Nurture"],
+        "MARKETING_EVENT":  ["Netskope Roadshow 2026 - NYC", "Netskope Roadshow 2026 - Chicago", "Netskope Roadshow 2026 - Austin", "CISO Virtual Forum Q2 2026", "Executive Dinner SF 2026"],
+    }
+    program = rng.choice(programs.get(source, ["Marketo Campaign"]))
+    return signal, program
+
+
 def _random_captured_at(rng: random.Random, days_back: int = 90) -> datetime:
     """Return a random UTC datetime within the past N days, weighted toward recent."""
     # Weight recent days more heavily (exponential-ish)
@@ -470,6 +503,7 @@ def _build_junk(rng: random.Random, source: str, source_detail: str) -> dict:
         "lead_tier": "JUNK",
         "is_competitor": False,
         "is_duplicate": False,
+        **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "JUNK", source))),
     }
 
 
@@ -500,6 +534,7 @@ def _build_too_small(rng: random.Random, source: str, source_detail: str) -> dic
         "lead_tier": "TOO_SMALL",
         "is_competitor": False,
         "is_duplicate": False,
+        **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "TOO_SMALL", source))),
     }
 
 
@@ -532,6 +567,7 @@ def _build_international(rng: random.Random, source: str, source_detail: str) ->
         "lead_tier": "INTERNATIONAL",
         "is_competitor": _is_competitor(email) if email else False,
         "is_duplicate": False,
+        **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "INTERNATIONAL", source))),
     }
 
 
@@ -563,6 +599,7 @@ def _build_sdr_worthy(rng: random.Random, source: str, source_detail: str) -> di
         "lead_tier": "SDR_WORTHY",
         "is_competitor": _is_competitor(email) if email else False,
         "is_duplicate": False,
+        **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "SDR_WORTHY", source))),
     }
 
 
@@ -593,6 +630,7 @@ def _build_rsm_ready(rng: random.Random, source: str, source_detail: str) -> dic
         "lead_tier": "RSM_READY",
         "is_competitor": _is_competitor(email),
         "is_duplicate": False,
+        **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "RSM_READY", source))),
     }
 
 

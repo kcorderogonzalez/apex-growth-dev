@@ -13,6 +13,7 @@ import {
   Brain,
   ShieldCheck,
   BookOpen,
+  Play,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { View } from '@/src/types';
@@ -34,6 +35,7 @@ export default function Sidebar({ currentView, onViewChange }: SidebarProps) {
     { id: 'quotes', label: 'Quotes', icon: FileText },
     { id: 'accounts', label: 'Accounts', icon: Users },
     { id: 'meetings', label: 'Meetings Manager', icon: Calendar },
+    { id: 'sequence-activity', label: 'Sequence Activity', icon: Play },
     { id: 'manager-insights', label: 'Manager Insights', icon: Lightbulb },
     { id: 'memory', label: 'Agent Memory', icon: Brain },
     ...(user?.role === 'admin' || user?.role === 'ops'

@@ -52,6 +52,8 @@ async def _migrate_inbound_leads() -> None:
         ("recommended_action",  "VARCHAR(200)"),
         ("campaign_sequence",   "VARCHAR(100)"),
         ("sdr_ready_notes",     "TEXT"),
+        ("marketo_signal",      "VARCHAR(5)"),
+        ("marketo_program",     "VARCHAR(200)"),
     ]
     async with engine.begin() as conn:
         for col, col_type in new_cols:

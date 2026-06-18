@@ -3,9 +3,7 @@ import logging
 from collections.abc import AsyncGenerator
 from datetime import date
 
-from google import genai
-from google.genai import types
-from sqlalchemy.ext.asyncio import AsyncSession
+import anthropic
 
 from app.agents.hooks import log_completion, log_error, log_request
 from app.agents.subagents import get_system_prompt
@@ -13,19 +11,21 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "claude-sonnet-4-6"
 
-_client: genai.Client | None = None
+_client: anthropic.AsyncAnthropic | None = None
 
 
-def get_client() -> genai.Client:
+def get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
-        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        if not settings.ANTHROPIC_API_KEY:
+            raise ValueError("ANTHROPIC_API_KEY is not set — add it to your .env file.")
+        _client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
     return _client
 
 
-async def fetch_active_memories(session: AsyncSession, intent: str) -> list[dict]:
+async def fetch_active_memories(session, intent: str) -> list[dict]:
     from sqlalchemy import select
     from app.models.memory_library import Memory, MemoryVersion
 
@@ -64,53 +64,13 @@ def _format_memory_block(memories: list[dict]) -> str:
     return "\n".join(lines)
 
 
-async def run_agent(
-    prompt: str,
-    user_id: str,
-    intent: str | None = None,
-    context: dict | None = None,
-    history: list[dict] | None = None,
-) -> AsyncGenerator[dict, None]:
-    """
-    Stream agent events. Yields dicts with type: delta | result | error.
-
-    NOTE: Gemini is the current provider. To swap to Anthropic:
-      1. Replace this file with the Anthropic SDK version
-      2. Change GEMINI_API_KEY to ANTHROPIC_API_KEY in .env
-      Everything else stays the same.
-    """
-    raw_system = get_system_prompt(intent)
-    # Substitute memory placeholders for memory_agent intent
-    if context and intent == "memory_agent":
-        memory_summary = context.get("memorySummary", "No preferences configured yet.")
-        admin_locks_list = context.get("adminLocks", [])
-        admin_locks_str = ", ".join(admin_locks_list) if admin_locks_list else "None"
-        raw_system = raw_system.replace("{memory_summary}", memory_summary).replace("{admin_locks}", admin_locks_str)
-
-    # Substitute target agent context for memory_draft_assistant.
-    # Data is pre-resolved in chat.py before the StreamingResponse is returned
-    # (DB session is closed by the time the generator body executes).
-    if intent == "memory_draft_assistant":
-        desc_map: dict = (context or {}).get("_resolvedAgentDescriptions", {})
-        prompt_map: dict = (context or {}).get("_resolvedAgentSystemPrompts", {})
-        desc_lines = [f"- {k}: {v}" for k, v in desc_map.items()]
-        prompt_blocks = [f"### {k}\n{v}" for k, v in prompt_map.items()]
-        raw_system = raw_system.replace(
-            "{target_agent_descriptions}", "\n".join(desc_lines) or "No agents selected yet — select target agents in the editor to tailor drafts."
-        ).replace(
-            "{target_agent_system_prompts}", "\n\n".join(prompt_blocks) or "No agents selected."
-        )
-
-    # Anchor the model to the current date — without this, "recent" means
-    # its training cutoff and it will report stale company facts.
+def _build_system(raw_system: str, context: dict | None, intent: str | None) -> str:
     today = date.today().strftime("%B %d, %Y")
     system = f"Today's date is {today}.\n\n{raw_system}"
 
-    # Inject Published Operational Memories pre-fetched by chat.py
     if context and context.get("_operationalMemories"):
         system = system + "\n\n" + _format_memory_block(context["_operationalMemories"])
 
-    # Inject territory identity so Hunter knows whose lens to apply
     if context and context.get("userTerritory"):
         role_label = context.get("userRole", "rep").upper()
         name_label = context.get("userName", "")
@@ -125,104 +85,142 @@ async def run_agent(
             f"scope your answer to the {territory_label} territory and its assigned accounts above."
         )
 
-    log_request(user_id, intent, prompt)
+    return system
 
-    # Build contents list from history + current prompt
-    contents: list[types.ContentUnion] = []
+
+def _build_messages(prompt: str, context: dict | None, history: list[dict] | None) -> list[dict]:
+    messages: list[dict] = []
+
     if history:
         for msg in history:
-            role = "model" if msg["role"] == "assistant" else "user"
-            contents.append(types.Content(role=role, parts=[types.Part(text=msg["content"])]))
+            role = "assistant" if msg["role"] == "assistant" else "user"
+            messages.append({"role": role, "content": msg["content"]})
+
     user_text = prompt
     if context:
-        context_block = json.dumps(context, indent=2)
-        user_text = f"<account_context>\n{context_block}\n</account_context>\n\n{prompt}"
-    contents.append(types.Content(role="user", parts=[types.Part(text=user_text)]))
+        # Strip internal keys before sending to model
+        clean_ctx = {k: v for k, v in context.items() if not k.startswith("_")}
+        if clean_ctx:
+            context_block = json.dumps(clean_ctx, indent=2)
+            user_text = f"<account_context>\n{context_block}\n</account_context>\n\n{prompt}"
 
-    # Hunter research card: two-step pipeline. Gemini cannot combine search
-    # grounding with enforced JSON mode, so a single grounded call returns
-    # JSON only by luck. Step 1 researches with live Google Search (free
-    # text); step 2 formats the notes into JSON with response_mime_type
-    # enforcement and no tools — guaranteed parseable.
+    messages.append({"role": "user", "content": user_text})
+    return messages
+
+
+async def run_agent(
+    prompt: str,
+    user_id: str,
+    intent: str | None = None,
+    context: dict | None = None,
+    history: list[dict] | None = None,
+) -> AsyncGenerator[dict, None]:
+    """
+    Stream agent events. Yields dicts with type: delta | result | error.
+    """
+    raw_system = get_system_prompt(intent)
+
+    # Substitute memory placeholders for memory_agent intent
+    if context and intent == "memory_agent":
+        memory_summary = context.get("memorySummary", "No preferences configured yet.")
+        admin_locks_list = context.get("adminLocks", [])
+        admin_locks_str = ", ".join(admin_locks_list) if admin_locks_list else "None"
+        raw_system = raw_system.replace("{memory_summary}", memory_summary).replace("{admin_locks}", admin_locks_str)
+
+    if intent == "memory_draft_assistant":
+        desc_map: dict = (context or {}).get("_resolvedAgentDescriptions", {})
+        prompt_map: dict = (context or {}).get("_resolvedAgentSystemPrompts", {})
+        desc_lines = [f"- {k}: {v}" for k, v in desc_map.items()]
+        prompt_blocks = [f"### {k}\n{v}" for k, v in prompt_map.items()]
+        raw_system = raw_system.replace(
+            "{target_agent_descriptions}",
+            "\n".join(desc_lines) or "No agents selected yet.",
+        ).replace(
+            "{target_agent_system_prompts}",
+            "\n\n".join(prompt_blocks) or "No agents selected.",
+        )
+
+    system = _build_system(raw_system, context, intent)
+    messages = _build_messages(prompt, context, history)
+
+    log_request(user_id, intent, prompt)
+
+    # ── Hunter: two-step research + format ──────────────────────────────────
     if intent == "hunter":
         try:
             client = get_client()
 
+            # Step 1: research with web_search tool
             research_system = system + (
-                "\n\nFOR THIS STEP ONLY: do NOT output JSON. Use Google Search and the "
+                "\n\nFOR THIS STEP ONLY: do NOT output JSON. Use web search and the "
                 "provided account_context to produce comprehensive research notes covering "
                 "all 12 items. For each item, state the facts found, their source, their "
                 "as-of date, and whether the item should be available=true or false."
             )
-            research = await client.aio.models.generate_content(
+
+            research_response = await client.messages.create(
                 model=MODEL,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=research_system,
-                    max_output_tokens=32768,
-                    tools=[types.Tool(google_search=types.GoogleSearch())],
-                ),
+                max_tokens=8096,
+                system=research_system,
+                messages=messages,
+                tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
             )
-            notes = research.text or ""
+
+            # Extract text from research response (may include tool_use blocks)
+            notes = ""
+            for block in research_response.content:
+                if hasattr(block, "text"):
+                    notes += block.text
+
             if not notes.strip():
                 yield {"type": "error", "content": "Hunter research step returned no data."}
                 return
 
-            format_contents = [types.Content(role="user", parts=[types.Part(text=(
-                f"<research_notes>\n{notes}\n</research_notes>\n\n"
-                "Convert these research notes into the 12-item Hunter JSON object exactly "
-                "as specified in your instructions. Use only facts from the notes. "
-                "Return ONLY the JSON object."
-            ))])]
+            # Step 2: format notes into the required JSON structure
+            format_messages = [{
+                "role": "user",
+                "content": (
+                    f"<research_notes>\n{notes}\n</research_notes>\n\n"
+                    "Convert these research notes into the 12-item Hunter JSON object exactly "
+                    "as specified in your instructions. Use only facts from the notes. "
+                    "Return ONLY the JSON object, no markdown fences."
+                ),
+            }]
 
             full_text = ""
-            async for chunk in await client.aio.models.generate_content_stream(
+            async with client.messages.stream(
                 model=MODEL,
-                contents=format_contents,
-                config=types.GenerateContentConfig(
-                    system_instruction=system,
-                    max_output_tokens=32768,
-                    response_mime_type="application/json",
-                ),
-            ):
-                text = getattr(chunk, 'text', None)
-                if text:
+                max_tokens=8096,
+                system=system,
+                messages=format_messages,
+            ) as stream:
+                async for text in stream.text_stream:
                     full_text += text
                     yield {"type": "delta", "content": text}
 
             log_completion(user_id, intent, None)
             yield {"type": "result", "content": full_text}
+
         except Exception as exc:
             msg = str(exc)
-            if "API_KEY" in msg or "authentication" in msg.lower() or "api key" in msg.lower():
-                msg = "Invalid GEMINI_API_KEY — check your .env file."
+            if "api_key" in msg.lower() or "authentication" in msg.lower() or "ANTHROPIC_API_KEY" in msg:
+                msg = "ANTHROPIC_API_KEY is not set — add it to your .env file."
             log_error(user_id, intent, msg)
             yield {"type": "error", "content": msg}
         return
 
-    # Chat with Hunter keeps single-step search grounding (no JSON needed).
-    tools = None
-    if intent == "hunter_chat":
-        tools = [types.Tool(google_search=types.GoogleSearch())]
-
+    # ── All other intents: plain streaming ──────────────────────────────────
     try:
         client = get_client()
         full_text = ""
 
-        async for chunk in await client.aio.models.generate_content_stream(
+        async with client.messages.stream(
             model=MODEL,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                # Gemini 2.5 thinking tokens count against this limit; with
-                # search grounding the model reasons heavily, so leave ample
-                # headroom or the JSON gets truncated mid-string.
-                max_output_tokens=32768,
-                tools=tools,
-            ),
-        ):
-            text = getattr(chunk, 'text', None)
-            if text:
+            max_tokens=8096,
+            system=system,
+            messages=messages,
+        ) as stream:
+            async for text in stream.text_stream:
                 full_text += text
                 yield {"type": "delta", "content": text}
 
@@ -231,7 +229,7 @@ async def run_agent(
 
     except Exception as exc:
         msg = str(exc)
-        if "API_KEY" in msg or "authentication" in msg.lower() or "api key" in msg.lower():
-            msg = "Invalid GEMINI_API_KEY — check your .env file."
+        if "api_key" in msg.lower() or "authentication" in msg.lower() or "ANTHROPIC_API_KEY" in msg:
+            msg = "ANTHROPIC_API_KEY is not set — add it to your .env file."
         log_error(user_id, intent, msg)
         yield {"type": "error", "content": msg}

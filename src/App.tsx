@@ -18,6 +18,7 @@ import ManagerInsights from './components/ManagerInsights';
 import MeetingsManager from './components/MeetingsManager';
 import HunterAgent from './components/HunterAgent';
 import MeetingScheduler from './components/MeetingScheduler';
+import SequenceActivity from './components/SequenceActivity';
 import { View, Account } from './types';
 import { accounts, allDeals, allContacts } from './lib/mockData';
 import { motion, AnimatePresence } from 'motion/react';
@@ -97,7 +98,7 @@ function AppMain() {
     if (view === 'accounts') setSelectedAccountId(null);
   };
 
-  const isPipelineView = currentView === 'pipeline';
+  const isPipelineView = currentView === 'pipeline' || currentView === 'sequence-activity';
 
   const renderView = () => {
     switch (currentView) {
@@ -123,6 +124,8 @@ function AppMain() {
         return <MemoryLibrary />;
       case 'users':
         return <UserManagementScreen />;
+      case 'sequence-activity':
+        return <SequenceActivity />;
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
