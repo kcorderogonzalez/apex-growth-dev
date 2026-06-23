@@ -3,7 +3,8 @@ import logging
 from collections.abc import AsyncGenerator
 from datetime import date
 
-import anthropic
+from google import genai
+from google.genai import types as genai_types
 
 from app.agents.hooks import log_completion, log_error, log_request
 from app.agents.subagents import get_system_prompt
@@ -11,17 +12,17 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "models/gemini-2.5-flash"
 
-_client: anthropic.AsyncAnthropic | None = None
+_client: genai.Client | None = None
 
 
-def get_client() -> anthropic.AsyncAnthropic:
+def get_client() -> genai.Client:
     global _client
     if _client is None:
-        if not settings.ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY is not set — add it to your .env file.")
-        _client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        if not settings.GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY is not set — add it to your .env file.")
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
     return _client
 
 
@@ -88,24 +89,24 @@ def _build_system(raw_system: str, context: dict | None, intent: str | None) -> 
     return system
 
 
-def _build_messages(prompt: str, context: dict | None, history: list[dict] | None) -> list[dict]:
-    messages: list[dict] = []
+def _build_prompt(prompt: str, context: dict | None, history: list[dict] | None) -> tuple[str, list[dict]]:
+    """Returns (user_text, history_turns) for Gemini contents format."""
+    contents: list[dict] = []
 
     if history:
         for msg in history:
-            role = "assistant" if msg["role"] == "assistant" else "user"
-            messages.append({"role": role, "content": msg["content"]})
+            role = "model" if msg["role"] == "assistant" else "user"
+            contents.append({"role": role, "parts": [{"text": msg["content"]}]})
 
     user_text = prompt
     if context:
-        # Strip internal keys before sending to model
         clean_ctx = {k: v for k, v in context.items() if not k.startswith("_")}
         if clean_ctx:
             context_block = json.dumps(clean_ctx, indent=2)
             user_text = f"<account_context>\n{context_block}\n</account_context>\n\n{prompt}"
 
-    messages.append({"role": "user", "content": user_text})
-    return messages
+    contents.append({"role": "user", "parts": [{"text": user_text}]})
+    return user_text, contents
 
 
 async def run_agent(
@@ -120,7 +121,6 @@ async def run_agent(
     """
     raw_system = get_system_prompt(intent)
 
-    # Substitute memory placeholders for memory_agent intent
     if context and intent == "memory_agent":
         memory_summary = context.get("memorySummary", "No preferences configured yet.")
         admin_locks_list = context.get("adminLocks", [])
@@ -141,95 +141,35 @@ async def run_agent(
         )
 
     system = _build_system(raw_system, context, intent)
-    messages = _build_messages(prompt, context, history)
+    _user_text, contents = _build_prompt(prompt, context, history)
 
     log_request(user_id, intent, prompt)
 
-    # ── Hunter: two-step research + format ──────────────────────────────────
-    if intent == "hunter":
-        try:
-            client = get_client()
-
-            # Step 1: research with web_search tool
-            research_system = system + (
-                "\n\nFOR THIS STEP ONLY: do NOT output JSON. Use web search and the "
-                "provided account_context to produce comprehensive research notes covering "
-                "all 12 items. For each item, state the facts found, their source, their "
-                "as-of date, and whether the item should be available=true or false."
-            )
-
-            research_response = await client.messages.create(
-                model=MODEL,
-                max_tokens=8096,
-                system=research_system,
-                messages=messages,
-                tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
-            )
-
-            # Extract text from research response (may include tool_use blocks)
-            notes = ""
-            for block in research_response.content:
-                if hasattr(block, "text"):
-                    notes += block.text
-
-            if not notes.strip():
-                yield {"type": "error", "content": "Hunter research step returned no data."}
-                return
-
-            # Step 2: format notes into the required JSON structure
-            format_messages = [{
-                "role": "user",
-                "content": (
-                    f"<research_notes>\n{notes}\n</research_notes>\n\n"
-                    "Convert these research notes into the 12-item Hunter JSON object exactly "
-                    "as specified in your instructions. Use only facts from the notes. "
-                    "Return ONLY the JSON object, no markdown fences."
-                ),
-            }]
-
-            full_text = ""
-            async with client.messages.stream(
-                model=MODEL,
-                max_tokens=8096,
-                system=system,
-                messages=format_messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    full_text += text
-                    yield {"type": "delta", "content": text}
-
-            log_completion(user_id, intent, None)
-            yield {"type": "result", "content": full_text}
-
-        except Exception as exc:
-            msg = str(exc)
-            if "api_key" in msg.lower() or "authentication" in msg.lower() or "ANTHROPIC_API_KEY" in msg:
-                msg = "ANTHROPIC_API_KEY is not set — add it to your .env file."
-            log_error(user_id, intent, msg)
-            yield {"type": "error", "content": msg}
-        return
-
-    # ── All other intents: plain streaming ──────────────────────────────────
     try:
         client = get_client()
         full_text = ""
 
-        async with client.messages.stream(
+        config = genai_types.GenerateContentConfig(
+            system_instruction=system,
+            max_output_tokens=8096,
+            temperature=0.7,
+        )
+
+        async for chunk in await client.aio.models.generate_content_stream(
             model=MODEL,
-            max_tokens=8096,
-            system=system,
-            messages=messages,
-        ) as stream:
-            async for text in stream.text_stream:
-                full_text += text
-                yield {"type": "delta", "content": text}
+            contents=contents,
+            config=config,
+        ):
+            if chunk.text:
+                full_text += chunk.text
+                yield {"type": "delta", "content": chunk.text}
 
         log_completion(user_id, intent, None)
         yield {"type": "result", "content": full_text}
 
     except Exception as exc:
         msg = str(exc)
-        if "api_key" in msg.lower() or "authentication" in msg.lower() or "ANTHROPIC_API_KEY" in msg:
-            msg = "ANTHROPIC_API_KEY is not set — add it to your .env file."
+        if "api_key" in msg.lower() or "authentication" in msg.lower() or "GEMINI_API_KEY" in msg:
+            msg = "GEMINI_API_KEY is not set or invalid — check your .env file."
         log_error(user_id, intent, msg)
         yield {"type": "error", "content": msg}
