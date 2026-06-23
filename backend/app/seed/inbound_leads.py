@@ -503,6 +503,8 @@ def _build_junk(rng: random.Random, source: str, source_detail: str) -> dict:
         "lead_tier": "JUNK",
         "is_competitor": False,
         "is_duplicate": False,
+        "account_match": False,
+        "meeting_secured": False,
         **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "JUNK", source))),
     }
 
@@ -534,6 +536,8 @@ def _build_too_small(rng: random.Random, source: str, source_detail: str) -> dic
         "lead_tier": "TOO_SMALL",
         "is_competitor": False,
         "is_duplicate": False,
+        "account_match": False,
+        "meeting_secured": False,
         **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "TOO_SMALL", source))),
     }
 
@@ -567,6 +571,8 @@ def _build_international(rng: random.Random, source: str, source_detail: str) ->
         "lead_tier": "INTERNATIONAL",
         "is_competitor": _is_competitor(email) if email else False,
         "is_duplicate": False,
+        "account_match": rng.random() < 0.15,
+        "meeting_secured": False,
         **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "INTERNATIONAL", source))),
     }
 
@@ -599,6 +605,8 @@ def _build_sdr_worthy(rng: random.Random, source: str, source_detail: str) -> di
         "lead_tier": "SDR_WORTHY",
         "is_competitor": _is_competitor(email) if email else False,
         "is_duplicate": False,
+        "account_match": (_acct := rng.random() < 0.40),
+        "meeting_secured": _acct and rng.random() < 0.10,
         **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "SDR_WORTHY", source))),
     }
 
@@ -630,6 +638,8 @@ def _build_rsm_ready(rng: random.Random, source: str, source_detail: str) -> dic
         "lead_tier": "RSM_READY",
         "is_competitor": _is_competitor(email),
         "is_duplicate": False,
+        "account_match": (_acct2 := rng.random() < 0.70),
+        "meeting_secured": _acct2 and rng.random() < 0.25,
         **dict(zip(("marketo_signal", "marketo_program"), _marketo_signal(rng, "RSM_READY", source))),
     }
 

@@ -336,6 +336,8 @@ export interface ProcessedInboundLead {
   is_existing_customer: boolean;
   marketo_signal: string | null;
   marketo_program: string | null;
+  account_match: boolean;
+  meeting_secured: boolean;
   persona_tier: string | null;
   intent_signal: string | null;
   priority_score: number | null;

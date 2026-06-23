@@ -54,6 +54,10 @@ class InboundLead(Base):
     contact_validated = Column(Boolean, default=False, nullable=False)
     is_existing_customer = Column(Boolean, default=False, nullable=False)
 
+    # Lead vs Contact classification
+    account_match = Column(Boolean, default=False, nullable=False)
+    meeting_secured = Column(Boolean, default=False, nullable=False)
+
     # Marketo enrichment
     marketo_signal = Column(String(5), nullable=True)      # alphanumeric signal e.g. "A1" (letter=ICP fit, number=activity)
     marketo_program = Column(String(200), nullable=True)   # originating Marketo program/campaign

@@ -3,7 +3,7 @@ import {
   Mail, Linkedin, Sparkles, AlertTriangle, CheckCircle2, XCircle,
   Clock, Loader2, RefreshCw, ChevronDown, ChevronRight, Zap,
   MapPin, Globe, TrendingUp, Target, X, Building2, Phone, User,
-  DollarSign, Tag, BarChart2, MessageSquare,
+  DollarSign, Tag, BarChart2, MessageSquare, HelpCircle, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useInboundLeads } from '@/src/hooks/useInboundLeads';
@@ -33,6 +33,178 @@ function formatRelativeTime(isoString: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
+}
+
+// ─── Signal helpers ───────────────────────────────────────────────────────────
+
+const GRADE_LABEL: Record<string, string> = {
+  A: 'Top ICP', B: 'Strong ICP', C: 'Moderate ICP', D: 'Weak ICP', E: 'Non-ICP', F: 'Junk Data',
+};
+const GRADE_DESC: Record<string, string> = {
+  A: 'Matches all key ICP criteria: industry, company size, title, and tech stack.',
+  B: 'Matches most ICP criteria with minor gaps.',
+  C: 'Partial ICP match — some criteria met, others missing.',
+  D: 'Limited ICP alignment. May be worth nurturing.',
+  E: 'Outside target ICP. Low conversion probability.',
+  F: 'Invalid or unusable data — likely spam or bot.',
+};
+const ACTIVITY_LABEL: Record<string, string> = {
+  '1': 'High Activity', '2': 'Medium-High Activity', '3': 'Medium Activity', '4': 'Minimal Activity', '5': 'No Activity',
+};
+const ACTIVITY_DESC: Record<string, string> = {
+  '1': 'Multiple high-intent actions: form fills, content downloads, webinar attendance, or repeated site visits.',
+  '2': 'Several engagement signals — opened emails, visited key pages, or attended 1 event.',
+  '3': 'Some activity detected: email opens or a single content interaction.',
+  '4': 'Minimal engagement — possibly a single page visit or one email open.',
+  '5': 'No recorded marketing activity. Cold or unengaged.',
+};
+
+const SIGNAL_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+  A1: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+  A2: { bg: 'bg-emerald-50',  text: 'text-emerald-700', border: 'border-emerald-200' },
+  B1: { bg: 'bg-cyan-100',    text: 'text-cyan-800',    border: 'border-cyan-300'    },
+  B2: { bg: 'bg-cyan-50',     text: 'text-cyan-700',    border: 'border-cyan-200'    },
+  C1: { bg: 'bg-amber-100',   text: 'text-amber-800',   border: 'border-amber-300'   },
+  C2: { bg: 'bg-amber-50',    text: 'text-amber-700',   border: 'border-amber-200'   },
+};
+function signalStyle(sig: string | null) {
+  if (!sig) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200' };
+  return SIGNAL_COLOR[sig] ?? { bg: 'bg-slate-100', text: 'text-slate-500', border: 'border-slate-200' };
+}
+
+function SignalBadge({ signal }: { signal: string | null }) {
+  const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null);
+  const ref = React.useRef<HTMLDivElement>(null);
+  if (!signal) return null;
+  const letter = signal[0];
+  const number = signal[1];
+  const style = signalStyle(signal);
+
+  const handleEnter = () => {
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ x: r.left + r.width / 2, y: r.top });
+    }
+  };
+
+  return (
+    <>
+      <div
+        ref={ref}
+        className="relative inline-flex"
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setPos(null)}
+      >
+        <span className={cn(
+          'px-2 py-0.5 rounded-full text-[11px] font-black font-label tracking-wide border flex items-center gap-1 cursor-default',
+          style.bg, style.text, style.border,
+        )}>
+          {signal}
+          <HelpCircle size={9} className="opacity-60" />
+        </span>
+      </div>
+
+      {/* Fixed-position tooltip — escapes all overflow:hidden ancestors */}
+      {pos && (
+        <div
+          className="pointer-events-none"
+          style={{
+            position: 'fixed',
+            left: pos.x,
+            top: pos.y - 8,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 9999,
+          }}
+        >
+          <div className="w-60 rounded-xl p-3 shadow-2xl text-[10px]"
+            style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #0369a1 100%)' }}>
+            {/* Header */}
+            <p className="font-black text-[9px] uppercase tracking-widest text-blue-200 mb-1">Marketo Signal</p>
+            <p className="font-black text-white text-sm mb-2">{signal} &mdash; {GRADE_LABEL[letter]} · {ACTIVITY_LABEL[number]}</p>
+            <div className="space-y-2 border-t border-white/20 pt-2">
+              <div>
+                <span className="text-blue-200 text-[8px] font-black uppercase tracking-widest">Demographic Grade ({letter})</span>
+                <p className="text-white/90 leading-snug mt-0.5">{GRADE_DESC[letter]}</p>
+              </div>
+              <div>
+                <span className="text-blue-200 text-[8px] font-black uppercase tracking-widest">Marketing Activity ({number})</span>
+                <p className="text-white/90 leading-snug mt-0.5">{ACTIVITY_DESC[number]}</p>
+              </div>
+            </div>
+            {/* Arrow */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-full"
+              style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #0369a1', width: 0, height: 0 }} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Lead / Contact classification ───────────────────────────────────────────
+
+type Classification = 'Lead' | 'Contact';
+type ClassificationStep = 'inbound' | 'account' | 'meeting' | 'contact';
+
+function getClassification(lead: ProcessedInboundLead): Classification {
+  return lead.account_match && lead.meeting_secured ? 'Contact' : 'Lead';
+}
+
+function getProgressStep(lead: ProcessedInboundLead): ClassificationStep {
+  if (lead.meeting_secured) return 'contact';
+  if (lead.account_match) return 'meeting';
+  return 'inbound';
+}
+
+const PROGRESS_STEPS: { id: ClassificationStep; label: string }[] = [
+  { id: 'inbound',  label: 'Inbound' },
+  { id: 'account',  label: 'Account matched' },
+  { id: 'meeting',  label: 'Meeting pending' },
+  { id: 'contact',  label: 'Contact' },
+];
+
+const STEP_ORDER: ClassificationStep[] = ['inbound', 'account', 'meeting', 'contact'];
+
+function ProgressTrack({ lead, compact = false }: { lead: ProcessedInboundLead; compact?: boolean }) {
+  const currentStep = getProgressStep(lead);
+  const currentIdx = STEP_ORDER.indexOf(currentStep);
+
+  return (
+    <div className={cn('flex items-center gap-0', compact ? 'mt-1.5' : '')}>
+      {PROGRESS_STEPS.map((step, i) => {
+        const done = i <= currentIdx;
+        const isLast = i === PROGRESS_STEPS.length - 1;
+        return (
+          <React.Fragment key={step.id}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className={cn(
+                'rounded-full flex items-center justify-center transition-colors',
+                compact ? 'w-2 h-2' : 'w-3 h-3',
+                done
+                  ? step.id === 'contact' ? 'bg-emerald-500' : 'bg-blue-500'
+                  : 'bg-slate-200',
+              )} />
+              {!compact && (
+                <span className={cn(
+                  'text-[7px] font-bold font-label whitespace-nowrap',
+                  done ? step.id === 'contact' ? 'text-emerald-600' : 'text-blue-600' : 'text-slate-300',
+                )}>
+                  {step.label}
+                </span>
+              )}
+            </div>
+            {!isLast && (
+              <div className={cn(
+                'flex-1 h-0.5 transition-colors',
+                compact ? 'w-3' : 'w-6',
+                i < currentIdx ? step.id === 'meeting' ? 'bg-emerald-400' : 'bg-blue-400' : 'bg-slate-200',
+              )} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 }
 
 function intentColor(signal: string | null) {
@@ -162,13 +334,26 @@ function LeadCard({
             </p>
           </div>
           <div className="flex flex-col items-end shrink-0">
-            <span className={cn('text-lg font-black font-headline leading-none', scoreColor(score))}>
-              {score ?? '—'}
-            </span>
-            <div className="w-10 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
-              <div className={cn('h-full rounded-full', scoreBg(score))} style={{ width: `${score ?? 0}%` }} />
-            </div>
+            <SignalBadge signal={lead.marketo_signal} />
           </div>
+        </div>
+
+        {/* Classification pill + track */}
+        <div className="flex items-center gap-2 mt-1">
+          {(() => {
+            const cls = getClassification(lead);
+            return (
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-[8px] font-black font-label uppercase tracking-tight',
+                cls === 'Contact'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200',
+              )}>
+                {cls}
+              </span>
+            );
+          })()}
+          <ProgressTrack lead={lead} compact />
         </div>
 
         {/* Verification badges */}
@@ -194,11 +379,6 @@ function LeadCard({
           <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold font-label uppercase tracking-tight bg-slate-50 text-slate-400">
             {sourceLabel(lead.source)}
           </span>
-          {lead.marketo_signal && (
-            <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black font-label uppercase tracking-tight bg-[#5C4EE5]/10 text-[#5C4EE5]">
-              {lead.marketo_signal}
-            </span>
-          )}
           <span className="ml-auto text-[9px] text-slate-400 font-label shrink-0">
             {formatRelativeTime(lead.captured_at)}
           </span>
@@ -452,12 +632,7 @@ function LeadDetailModal({
             <VerificationBadges lead={lead} />
           </div>
           <div className="flex items-center gap-3 shrink-0 ml-3">
-            <div className="text-right">
-              <span className={cn('text-2xl font-black font-headline leading-none', scoreColor(score))}>
-                {score ?? '—'}
-              </span>
-              <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Score</p>
-            </div>
+            {lead.marketo_signal && <SignalBadge signal={lead.marketo_signal} />}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
               <X size={16} />
             </button>
@@ -603,26 +778,177 @@ function LeadDetailModal({
                 <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Quality</p>
                 <p className="text-xs font-semibold text-slate-700">{Math.round(lead.data_quality_score * 100)}%</p>
               </div>
-              {lead.marketo_signal && (
-                <div className="col-span-3 border-t border-slate-100 pt-2 mt-1">
-                  <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest mb-1.5">Marketo Signal</p>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-black text-[#5C4EE5] leading-none tracking-tight">{lead.marketo_signal}</span>
-                    <div>
-                      <p className="text-[10px] font-semibold text-slate-700">
-                        {lead.marketo_signal[0] === 'A' ? 'Top ICP' : lead.marketo_signal[0] === 'B' ? 'Strong ICP' : lead.marketo_signal[0] === 'C' ? 'Moderate ICP' : lead.marketo_signal[0] === 'D' ? 'Weak ICP' : lead.marketo_signal[0] === 'E' ? 'Non-ICP' : 'Junk Data'}
-                        {' · '}
-                        {lead.marketo_signal[1] === '1' ? 'High Activity' : lead.marketo_signal[1] === '2' ? 'Medium-High Activity' : lead.marketo_signal[1] === '3' ? 'Medium Activity' : lead.marketo_signal[1] === '4' ? 'Minimal Activity' : 'No Activity'}
-                      </p>
-                      {lead.marketo_program && (
-                        <p className="text-[9px] text-slate-400 mt-0.5">{lead.marketo_program}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </section>
+
+          {/* Signal Breakdown */}
+          {lead.marketo_signal && (() => {
+            const letter = lead.marketo_signal[0];
+            const number = lead.marketo_signal[1];
+            const style = signalStyle(lead.marketo_signal);
+            return (
+              <section className="rounded-xl border border-slate-200 overflow-hidden">
+                {/* Header */}
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
+                    <BarChart2 size={10} /> Signal Breakdown
+                  </p>
+                  <span className={cn('px-2.5 py-1 rounded-full text-sm font-black tracking-wide border', style.bg, style.text, style.border)}>
+                    {lead.marketo_signal}
+                  </span>
+                </div>
+
+                <div className="p-4 space-y-4">
+                  {/* Two pillars side by side */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Demographic Grade */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 space-y-1.5">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Demographic Grade</p>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-2xl font-black font-headline leading-none', style.text)}>{letter}</span>
+                        <span className="text-xs font-bold text-slate-700">{GRADE_LABEL[letter]}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-snug">{GRADE_DESC[letter]}</p>
+                    </div>
+                    {/* Marketing Activity */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 space-y-1.5">
+                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Marketing Activity</p>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-2xl font-black font-headline leading-none', style.text)}>{number}</span>
+                        <span className="text-xs font-bold text-slate-700">{ACTIVITY_LABEL[number]}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-snug">{ACTIVITY_DESC[number]}</p>
+                    </div>
+                  </div>
+
+                  {/* Cross-reference explanation */}
+                  <div className="bg-slate-50 rounded-xl p-3 flex items-start gap-3">
+                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{letter}</span>
+                      <ArrowRight size={10} className="text-slate-400" />
+                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{number}</span>
+                      <ArrowRight size={10} className="text-slate-400" />
+                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{lead.marketo_signal}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-600 leading-snug">
+                      <span className="font-bold">{GRADE_LABEL[letter]}</span> combined with{' '}
+                      <span className="font-bold">{ACTIVITY_LABEL[number]}</span> produces signal{' '}
+                      <span className="font-bold">{lead.marketo_signal}</span>
+                      {letter <= 'B' && number <= '2'
+                        ? ' — high-priority lead, recommend immediate outreach.'
+                        : letter <= 'B'
+                        ? ' — strong ICP fit but low engagement; consider nurture sequence.'
+                        : number <= '2'
+                        ? ' — active engagement but weaker fit; qualify before investing time.'
+                        : ' — low priority; route to automated nurture.'}
+                    </p>
+                  </div>
+
+                  {lead.marketo_program && (
+                    <p className="text-[9px] text-slate-400 font-label">Program: {lead.marketo_program}</p>
+                  )}
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* Lead vs Contact Classification */}
+          {(() => {
+            const cls = getClassification(lead);
+            const isContact = cls === 'Contact';
+            return (
+              <section className={cn(
+                'rounded-xl border overflow-hidden',
+                isContact ? 'border-emerald-200' : 'border-blue-200',
+              )}>
+                {/* Header */}
+                <div className={cn(
+                  'px-4 py-3 border-b flex items-center justify-between',
+                  isContact ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200',
+                )}>
+                  <p className={cn(
+                    'text-[9px] font-black uppercase tracking-widest font-label flex items-center gap-1.5',
+                    isContact ? 'text-emerald-700' : 'text-blue-700',
+                  )}>
+                    <User size={10} /> Classification
+                  </p>
+                  <span className={cn(
+                    'px-3 py-1 rounded-full text-xs font-black tracking-wide border',
+                    isContact
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-blue-100 text-blue-800 border-blue-200',
+                  )}>
+                    {cls}
+                  </span>
+                </div>
+
+                <div className="p-4 space-y-4">
+                  {/* Progress track */}
+                  <ProgressTrack lead={lead} />
+
+                  {/* Criteria grid */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      {
+                        label: 'Account',
+                        value: lead.account_match,
+                        yes: 'Exists in CRM',
+                        no: 'Not in CRM yet',
+                      },
+                      {
+                        label: 'Meeting',
+                        value: lead.meeting_secured,
+                        yes: 'Secured',
+                        no: lead.account_match ? 'Not yet secured' : 'N/A',
+                      },
+                      {
+                        label: 'Status',
+                        value: isContact,
+                        yes: 'Contact',
+                        no: 'Lead',
+                      },
+                    ].map(({ label, value, yes, no }) => (
+                      <div key={label} className={cn(
+                        'rounded-xl p-3 border text-center',
+                        value ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200',
+                      )}>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label mb-1">{label}</p>
+                        <div className={cn(
+                          'flex items-center justify-center gap-1',
+                          value ? 'text-emerald-600' : 'text-slate-500',
+                        )}>
+                          {value ? <CheckCircle2 size={12} /> : <Clock size={12} />}
+                          <span className="text-xs font-bold">{value ? yes : no}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rule explanation */}
+                  <div className={cn(
+                    'rounded-xl p-3 text-[10px] leading-relaxed',
+                    isContact ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800',
+                  )}>
+                    {isContact
+                      ? 'Account exists in CRM and a meeting has been secured — this record qualifies as a Contact. Update CRM to reflect the promotion.'
+                      : lead.account_match
+                      ? 'Account exists in CRM but no meeting secured yet. Remains a Lead until a meeting is booked — then auto-promotes to Contact.'
+                      : 'No matching account found in CRM. This is a Lead. Once an account is created and a meeting is booked, it will promote to Contact.'}
+                  </div>
+
+                  {/* Promote CTA — only shown when one step away */}
+                  {lead.account_match && !lead.meeting_secured && (
+                    <button
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <CheckCircle2 size={11} /> Mark meeting secured → promote to Contact
+                    </button>
+                  )}
+                </div>
+              </section>
+            );
+          })()}
 
           {/* Battlecard */}
           {(() => {

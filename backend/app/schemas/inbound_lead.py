@@ -37,6 +37,8 @@ class InboundLeadOut(BaseModel):
     routing_queue: Optional[str]
     contact_validated: bool
     is_existing_customer: bool
+    account_match: bool
+    meeting_secured: bool
     # Marketo
     marketo_signal: Optional[str]
     marketo_program: Optional[str]
