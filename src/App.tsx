@@ -19,6 +19,7 @@ import MeetingsManager from './components/MeetingsManager';
 import HunterAgent from './components/HunterAgent';
 import MeetingScheduler from './components/MeetingScheduler';
 import SequenceActivity from './components/SequenceActivity';
+import OpportunitiesScreen from './components/OpportunitiesScreen';
 import { View, Account } from './types';
 import { accounts, allDeals, allContacts } from './lib/mockData';
 import { motion, AnimatePresence } from 'motion/react';
@@ -98,7 +99,7 @@ function AppMain() {
     if (view === 'accounts') setSelectedAccountId(null);
   };
 
-  const isPipelineView = currentView === 'pipeline' || currentView === 'sequence-activity';
+  const isPipelineView = currentView === 'pipeline' || currentView === 'sequence-activity' || currentView === 'opportunities';
 
   const renderView = () => {
     switch (currentView) {
@@ -110,6 +111,8 @@ function AppMain() {
         ) : (
           <AccountsDashboard onSelectAccount={setSelectedAccountId} onHunterCommand={setHunterAccount} />
         );
+      case 'opportunities':
+        return <OpportunitiesScreen />;
       case 'deals':
         return <DealWarRoom />;
       case 'quotes':

@@ -1,4 +1,4 @@
-export type View = 'pipeline' | 'deals' | 'quotes' | 'accounts' | 'manager-insights' | 'meetings' | 'memory' | 'users' | 'memory-library' | 'sequence-activity';
+export type View = 'pipeline' | 'deals' | 'opportunities' | 'quotes' | 'accounts' | 'manager-insights' | 'meetings' | 'memory' | 'users' | 'memory-library' | 'sequence-activity';
 
 // ─── Agent Memory ─────────────────────────────────────────────────────────────
 
