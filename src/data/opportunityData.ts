@@ -1,11 +1,11 @@
 export type OppStage =
-  | 'prospecting'
-  | 'qualification'
-  | 'discovery'
-  | 'technical_validation'
-  | 'proposal'
-  | 'negotiation'
-  | 'commit'
+  | 'ss1_pipeline_generation'
+  | 'ss2_new_business_meeting'
+  | 'ss3_qualification'
+  | 'ss4_solution_validation'
+  | 'ss5_proposal_negotiation'
+  | 'ss6_purchasing'
+  | 'ss7_po_received'
   | 'closed_won'
   | 'closed_lost';
 
@@ -65,16 +65,16 @@ export interface Opportunity {
 
 // ─── Stage metadata ───────────────────────────────────────────────────────────
 
-export const STAGES: { id: OppStage; label: string; probability: number; color: string; bg: string; border: string }[] = [
-  { id: 'prospecting',         label: 'Prospecting',          probability: 10,  color: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-300' },
-  { id: 'qualification',       label: 'Qualification',         probability: 20,  color: 'text-violet-700',  bg: 'bg-violet-50',   border: 'border-violet-200' },
-  { id: 'discovery',           label: 'Discovery',             probability: 35,  color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200' },
-  { id: 'technical_validation',label: 'Technical Validation',  probability: 50,  color: 'text-cyan-700',    bg: 'bg-cyan-50',     border: 'border-cyan-200' },
-  { id: 'proposal',            label: 'Proposal',              probability: 65,  color: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200' },
-  { id: 'negotiation',         label: 'Negotiation',           probability: 80,  color: 'text-orange-700',  bg: 'bg-orange-50',   border: 'border-orange-200' },
-  { id: 'commit',              label: 'Commit',                probability: 90,  color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
-  { id: 'closed_won',          label: 'Closed Won',            probability: 100, color: 'text-emerald-800', bg: 'bg-emerald-100', border: 'border-emerald-300' },
-  { id: 'closed_lost',         label: 'Closed Lost',           probability: 0,   color: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200' },
+export const STAGES: { id: OppStage; label: string; code: string; probability: number; color: string; bg: string; border: string }[] = [
+  { id: 'ss1_pipeline_generation',  label: 'Pipeline Generation',      code: 'SS1', probability: 10,  color: 'text-slate-600',   bg: 'bg-slate-100',   border: 'border-slate-300'   },
+  { id: 'ss2_new_business_meeting', label: 'New Business Meeting',     code: 'SS2', probability: 25,  color: 'text-violet-700',  bg: 'bg-violet-50',   border: 'border-violet-200'  },
+  { id: 'ss3_qualification',        label: 'Qualification',            code: 'SS3', probability: 40,  color: 'text-blue-700',    bg: 'bg-blue-50',     border: 'border-blue-200'    },
+  { id: 'ss4_solution_validation',  label: 'Solution Validation',      code: 'SS4', probability: 55,  color: 'text-cyan-700',    bg: 'bg-cyan-50',     border: 'border-cyan-200'    },
+  { id: 'ss5_proposal_negotiation', label: 'Proposal & Negotiation',   code: 'SS5', probability: 70,  color: 'text-amber-700',   bg: 'bg-amber-50',    border: 'border-amber-200'   },
+  { id: 'ss6_purchasing',           label: 'Purchasing',               code: 'SS6', probability: 85,  color: 'text-orange-700',  bg: 'bg-orange-50',   border: 'border-orange-200'  },
+  { id: 'ss7_po_received',          label: 'PO Received',              code: 'SS7', probability: 100, color: 'text-emerald-700', bg: 'bg-emerald-50',  border: 'border-emerald-200' },
+  { id: 'closed_won',               label: 'Closed Won',               code: 'WON', probability: 100, color: 'text-emerald-800', bg: 'bg-emerald-100', border: 'border-emerald-300' },
+  { id: 'closed_lost',              label: 'Closed Lost',              code: 'LST', probability: 0,   color: 'text-red-700',     bg: 'bg-red-50',      border: 'border-red-200'     },
 ];
 
 export const ACTIVE_STAGES = STAGES.filter(s => s.id !== 'closed_won' && s.id !== 'closed_lost');
@@ -88,8 +88,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Apex Financial Group',
     arrValue: 840_000,
     type: 'New Business',
-    stage: 'commit',
-    probability: 90,
+    stage: 'ss6_purchasing',
+    probability: 85,
     closeDate: '2026-06-30',
     nextStep: 'Legal review of MSA — expect back by June 27',
     daysInStage: 8,
@@ -138,8 +138,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'BlueCross Digital Health',
     arrValue: 1_200_000,
     type: 'New Business',
-    stage: 'negotiation',
-    probability: 80,
+    stage: 'ss5_proposal_negotiation',
+    probability: 70,
     closeDate: '2026-07-31',
     nextStep: 'Commercial negotiation call with VP Procurement — July 2',
     daysInStage: 14,
@@ -187,8 +187,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Sterling Aerospace & Defense',
     arrValue: 2_100_000,
     type: 'New Business',
-    stage: 'proposal',
-    probability: 65,
+    stage: 'ss5_proposal_negotiation',
+    probability: 55,
     closeDate: '2026-08-29',
     nextStep: 'Deliver formal proposal deck to CIO James Whitfield — July 5',
     daysInStage: 21,
@@ -235,8 +235,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Triton Manufacturing',
     arrValue: 390_000,
     type: 'Expansion',
-    stage: 'technical_validation',
-    probability: 50,
+    stage: 'ss4_solution_validation',
+    probability: 55,
     closeDate: '2026-08-15',
     nextStep: 'POC kick-off call with network team — June 27',
     daysInStage: 11,
@@ -284,8 +284,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Harbor Financial Services',
     arrValue: 560_000,
     type: 'Expansion',
-    stage: 'discovery',
-    probability: 35,
+    stage: 'ss3_qualification',
+    probability: 40,
     closeDate: '2026-09-30',
     nextStep: 'Discovery call with CISO and architecture team — July 1',
     daysInStage: 6,
@@ -327,8 +327,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Quantum Logistics Group',
     arrValue: 720_000,
     type: 'Renewal',
-    stage: 'commit',
-    probability: 90,
+    stage: 'ss6_purchasing',
+    probability: 85,
     closeDate: '2026-06-30',
     nextStep: 'Order form signature from Christine Patel — due June 26',
     daysInStage: 5,
@@ -371,8 +371,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Cascade Health Network',
     arrValue: 980_000,
     type: 'New Business',
-    stage: 'qualification',
-    probability: 20,
+    stage: 'ss2_new_business_meeting',
+    probability: 25,
     closeDate: '2026-10-31',
     nextStep: 'CISO intro call — follow up from RSA badge scan',
     daysInStage: 18,
@@ -414,8 +414,8 @@ export const opportunities: Opportunity[] = [
     accountName: 'Nexus Energy Partners',
     arrValue: 310_000,
     type: 'New Business',
-    stage: 'discovery',
-    probability: 35,
+    stage: 'ss3_qualification',
+    probability: 40,
     closeDate: '2026-09-15',
     nextStep: 'Zero Trust Maturity workshop — July 8',
     daysInStage: 9,

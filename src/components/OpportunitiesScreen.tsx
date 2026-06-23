@@ -145,7 +145,7 @@ function OppCard({ opp, onClick }: { opp: Opportunity; onClick: () => void }) {
       {/* Stage pill */}
       <div className="flex items-center gap-2 mb-2">
         <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wide', stage.bg, stage.color, stage.border)}>
-          {stage.label}
+          {stage.code} · {stage.label}
         </span>
         <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-0.5', status.pill)}>
           <span className={cn('h-1 w-1 rounded-full', status.dot)} />
@@ -347,7 +347,7 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wide', stage.bg, stage.color, stage.border)}>
-                  {stage.label}
+                  {stage.code} · {stage.label}
                 </span>
                 <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1', status.pill)}>
                   <span className={cn('h-1 w-1 rounded-full', status.dot)} />
@@ -385,7 +385,7 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
                       'text-[7px] font-bold font-label text-center leading-none',
                       done ? 'text-blue-600' : 'text-slate-300',
                     )}>
-                      {s.label.split(' ')[0]}
+                      {s.code}
                     </span>
                   </div>
                 );
@@ -605,7 +605,7 @@ export default function OpportunitiesScreen() {
   // Pipeline metrics
   const totalARR = opportunities.reduce((s, o) => s + o.arrValue * (o.probability / 100), 0);
   const totalPipe = opportunities.reduce((s, o) => s + o.arrValue, 0);
-  const commitARR = opportunities.filter(o => o.stage === 'commit' || o.stage === 'closed_won').reduce((s, o) => s + o.arrValue, 0);
+  const commitARR = opportunities.filter(o => o.stage === 'ss6_purchasing' || o.stage === 'ss7_po_received' || o.stage === 'closed_won').reduce((s, o) => s + o.arrValue, 0);
   const atRisk = opportunities.filter(o => o.status === 'at_risk' || o.status === 'stalled').length;
 
   return (
@@ -656,7 +656,7 @@ export default function OpportunitiesScreen() {
                   stageFilter === s.id ? `${s.bg} ${s.color} ${s.border}` : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100',
                 )}
               >
-                {s.label} · {count}
+                {s.code} {s.label} · {count}
               </button>
             );
           })}
