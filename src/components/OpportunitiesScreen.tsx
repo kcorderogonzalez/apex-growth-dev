@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import {
-  opportunities, STAGES, ACTIVE_STAGES,
+  opportunities as INITIAL_OPPORTUNITIES, STAGES, ACTIVE_STAGES,
   type Opportunity, type OppStage, type MAPItem, type Stakeholder,
 } from '@/src/data/opportunityData';
 
@@ -494,23 +494,35 @@ function KanbanView({ map }: { map: MAPItem[] }) {
 
 // ─── SFDC-style Path chevron ──────────────────────────────────────────────────
 
-function PathChevron({ currentStage }: { currentStage: OppStage }) {
+function PathChevron({
+  currentStage,
+  onStageSelect,
+}: {
+  currentStage: OppStage;
+  onStageSelect?: (stage: OppStage) => void;
+}) {
   const currentIdx = ACTIVE_STAGES.findIndex(s => s.id === currentStage);
   return (
-    <div className="flex items-center overflow-x-auto">
+    <div className="flex items-center overflow-x-auto gap-0.5">
       {ACTIVE_STAGES.map((s, i) => {
         const done = i < currentIdx;
         const current = i === currentIdx;
+        const clickable = !!onStageSelect && !current;
         return (
           <React.Fragment key={s.id}>
-            <div className={cn(
-              'flex items-center justify-center shrink-0 h-7 px-2.5 text-[7px] font-black uppercase tracking-wide leading-none rounded transition-colors whitespace-nowrap',
-              current ? 'bg-blue-600 text-white shadow-sm' :
-              done    ? 'bg-blue-100 text-blue-600' :
-                        'text-slate-300',
-            )}>
+            <button
+              disabled={!clickable}
+              onClick={() => onStageSelect?.(s.id)}
+              className={cn(
+                'flex items-center justify-center shrink-0 h-7 px-2.5 text-[7px] font-black uppercase tracking-wide leading-none rounded transition-all whitespace-nowrap',
+                current ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 ring-offset-1' :
+                done    ? 'bg-blue-100 text-blue-600' :
+                          'text-slate-300 bg-slate-100',
+                clickable ? 'hover:opacity-80 hover:scale-105 cursor-pointer' : 'cursor-default',
+              )}
+            >
               {s.label}
-            </div>
+            </button>
             {i < ACTIVE_STAGES.length - 1 && (
               <ChevronRight size={10} className={cn('shrink-0', done || current ? 'text-blue-300' : 'text-slate-200')} />
             )}
@@ -523,15 +535,17 @@ function PathChevron({ currentStage }: { currentStage: OppStage }) {
 
 // ─── Kanban board card ────────────────────────────────────────────────────────
 
-function KanbanBoardCard({ opp, onClick }: { opp: Opportunity; onClick: () => void }) {
+function KanbanBoardCard({ opp, onClick, onDragStart }: { opp: Opportunity; onClick: () => void; onDragStart: (id: string) => void }) {
   const status = STATUS_STYLE[opp.status];
   const days = daysUntil(opp.closeDate);
   const mScore = opp.closePlan ? meddpiccScore(opp.closePlan.meddpicc) : 0;
 
   return (
     <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(opp.id); }}
       onClick={onClick}
-      className="bg-white border border-slate-200 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all group"
+      className="bg-white border border-slate-200 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200 transition-all group select-none"
     >
       <p className="text-[11px] font-bold text-blue-700 group-hover:underline leading-snug truncate">
         {opp.name}
@@ -568,14 +582,41 @@ function KanbanBoardCard({ opp, onClick }: { opp: Opportunity; onClick: () => vo
 
 // ─── Kanban board ─────────────────────────────────────────────────────────────
 
-function KanbanBoard({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: string) => void }) {
+function KanbanBoard({
+  opps,
+  onSelect,
+  onStageChange,
+}: {
+  opps: Opportunity[];
+  onSelect: (id: string) => void;
+  onStageChange: (id: string, stage: OppStage) => void;
+}) {
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [overStage, setOverStage] = React.useState<OppStage | null>(null);
+
   return (
     <div className="flex gap-3 h-full overflow-x-auto p-5 pb-6 items-start">
       {ACTIVE_STAGES.map(stage => {
         const stageOpps = opps.filter(o => o.stage === stage.id);
         const total = stageOpps.reduce((s, o) => s + o.arrValue, 0);
+        const isOver = overStage === stage.id;
+
         return (
-          <div key={stage.id} className="flex flex-col shrink-0 w-56 bg-slate-50/80 rounded-xl border border-slate-200">
+          <div
+            key={stage.id}
+            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOverStage(stage.id); }}
+            onDragLeave={() => setOverStage(null)}
+            onDrop={e => {
+              e.preventDefault();
+              if (draggingId) onStageChange(draggingId, stage.id);
+              setDraggingId(null);
+              setOverStage(null);
+            }}
+            className={cn(
+              'flex flex-col shrink-0 w-56 rounded-xl border transition-all duration-150',
+              isOver ? 'border-blue-400 bg-blue-50/60 shadow-md scale-[1.01]' : 'border-slate-200 bg-slate-50/80',
+            )}
+          >
             {/* Column header */}
             <div className={cn('px-3 py-2.5 rounded-t-xl border-b border-slate-200', stage.bg)}>
               <p className={cn('text-[9px] font-black uppercase tracking-widest leading-none', stage.color)}>
@@ -589,14 +630,26 @@ function KanbanBoard({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: s
               </div>
             </div>
 
+            {/* Drop zone hint */}
+            {isOver && draggingId && !stageOpps.find(o => o.id === draggingId) && (
+              <div className="mx-2 mt-2 h-12 rounded-lg border-2 border-dashed border-blue-400 bg-blue-50 flex items-center justify-center">
+                <p className="text-[9px] font-bold text-blue-500">Drop here</p>
+              </div>
+            )}
+
             {/* Cards */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px]">
               {stageOpps
                 .sort((a, b) => b.arrValue - a.arrValue)
                 .map(opp => (
-                  <KanbanBoardCard key={opp.id} opp={opp} onClick={() => onSelect(opp.id)} />
+                  <KanbanBoardCard
+                    key={opp.id}
+                    opp={opp}
+                    onClick={() => onSelect(opp.id)}
+                    onDragStart={id => setDraggingId(id)}
+                  />
                 ))}
-              {stageOpps.length === 0 && (
+              {stageOpps.length === 0 && !isOver && (
                 <div className="flex flex-col items-center justify-center py-8 text-slate-300">
                   <Target size={16} className="opacity-30 mb-1" />
                   <p className="text-[9px] font-label">No opportunities</p>
@@ -673,7 +726,15 @@ function ListView({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: stri
 
 // ─── Close Plan drawer ────────────────────────────────────────────────────────
 
-function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => void }) {
+function ClosePlanDrawer({
+  opp,
+  onClose,
+  onStageChange,
+}: {
+  opp: Opportunity;
+  onClose: () => void;
+  onStageChange: (id: string, stage: OppStage) => void;
+}) {
   const [tab, setTab] = React.useState<'overview' | 'plan' | 'stakeholders' | 'risks'>('overview');
   const [planView, setPlanView] = React.useState<'gantt' | 'kanban'>('gantt');
   const stage = stageMeta(opp.stage);
@@ -733,9 +794,13 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
             </div>
           </div>
 
-          {/* SFDC-style Path */}
-          <div className="mt-3">
-            <PathChevron currentStage={opp.stage} />
+          {/* SFDC-style Path — click any stage to move */}
+          <div className="mt-3 space-y-1">
+            <PathChevron
+              currentStage={opp.stage}
+              onStageSelect={newStage => onStageChange(opp.id, newStage)}
+            />
+            <p className="text-[8px] text-slate-400 font-label">Click a stage to move this opportunity</p>
           </div>
 
           {/* Next step */}
@@ -967,24 +1032,32 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function OpportunitiesScreen() {
+  const [opps, setOpps] = React.useState<Opportunity[]>(INITIAL_OPPORTUNITIES);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [stageFilter, setStageFilter] = React.useState<OppStage | 'all'>('all');
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'healthy' | 'at_risk' | 'stalled'>('all');
   const [viewMode, setViewMode] = React.useState<'kanban' | 'list'>('kanban');
+  const [stageChangedId, setStageChangedId] = React.useState<string | null>(null);
 
-  const selectedOpp = opportunities.find(o => o.id === selectedId) ?? null;
+  const handleStageChange = React.useCallback((id: string, stage: OppStage) => {
+    setOpps(prev => prev.map(o => o.id === id ? { ...o, stage } : o));
+    setStageChangedId(id);
+    setTimeout(() => setStageChangedId(null), 2000);
+  }, []);
 
-  const filtered = opportunities.filter(o => {
+  const selectedOpp = opps.find(o => o.id === selectedId) ?? null;
+
+  const filtered = opps.filter(o => {
     if (stageFilter !== 'all' && o.stage !== stageFilter) return false;
     if (statusFilter !== 'all' && o.status !== statusFilter) return false;
     return true;
   });
 
   // Pipeline metrics
-  const totalARR = opportunities.reduce((s, o) => s + o.arrValue * (o.probability / 100), 0);
-  const totalPipe = opportunities.reduce((s, o) => s + o.arrValue, 0);
-  const commitARR = opportunities.filter(o => o.stage === 'ss6_purchasing' || o.stage === 'ss7_po_received' || o.stage === 'closed_won').reduce((s, o) => s + o.arrValue, 0);
-  const atRisk = opportunities.filter(o => o.status === 'at_risk' || o.status === 'stalled').length;
+  const totalARR = opps.reduce((s, o) => s + o.arrValue * (o.probability / 100), 0);
+  const totalPipe = opps.reduce((s, o) => s + o.arrValue, 0);
+  const commitARR = opps.filter(o => o.stage === 'ss6_purchasing' || o.stage === 'ss7_po_received' || o.stage === 'closed_won').reduce((s, o) => s + o.arrValue, 0);
+  const atRisk = opps.filter(o => o.status === 'at_risk' || o.status === 'stalled').length;
 
   return (
     <div className="flex flex-col h-full">
@@ -994,7 +1067,7 @@ export default function OpportunitiesScreen() {
         <div className="flex items-end justify-between gap-6 mb-4">
           <div>
             <h1 className="text-lg font-black text-slate-900">Opportunities</h1>
-            <p className="text-[11px] text-slate-500 mt-0.5">{opportunities.length} active · Close plans with MEDDPICC</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{opps.length} active · Close plans with MEDDPICC</p>
           </div>
           <div className="flex items-end gap-4">
             {/* View toggle */}
@@ -1046,7 +1119,7 @@ export default function OpportunitiesScreen() {
             All Stages
           </button>
           {ACTIVE_STAGES.map(s => {
-            const count = opportunities.filter(o => o.stage === s.id).length;
+            const count = opps.filter(o => o.stage === s.id).length;
             if (count === 0) return null;
             return (
               <button
@@ -1086,7 +1159,7 @@ export default function OpportunitiesScreen() {
         </div>
       ) : viewMode === 'kanban' ? (
         <div className="flex-1 overflow-hidden">
-          <KanbanBoard opps={filtered} onSelect={setSelectedId} />
+          <KanbanBoard opps={filtered} onSelect={setSelectedId} onStageChange={handleStageChange} />
         </div>
       ) : (
         <div className="flex-1 overflow-auto">
@@ -1094,11 +1167,25 @@ export default function OpportunitiesScreen() {
         </div>
       )}
 
+      {/* Stage-change toast */}
+      {stageChangedId && (() => {
+        const o = opps.find(x => x.id === stageChangedId);
+        const s = o ? ACTIVE_STAGES.find(st => st.id === o.stage) : null;
+        if (!o || !s) return null;
+        return (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-slate-900 text-white text-[11px] font-bold px-4 py-2.5 rounded-full shadow-xl">
+            <CheckCircle2 size={13} className="text-emerald-400" />
+            {o.name} moved to <span className={cn('font-black', s.color.replace('text-', 'text-'))}>{s.label}</span>
+          </div>
+        );
+      })()}
+
       {/* Close Plan drawer */}
       {selectedOpp && (
         <ClosePlanDrawer
           opp={selectedOpp}
           onClose={() => setSelectedId(null)}
+          onStageChange={handleStageChange}
         />
       )}
     </div>
