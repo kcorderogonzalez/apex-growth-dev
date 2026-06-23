@@ -3,6 +3,7 @@ import {
   TrendingUp, DollarSign, Calendar, ChevronRight, X, CheckCircle2,
   Clock, AlertTriangle, Target, User, Users, Shield, Zap, ArrowRight,
   BarChart2, FileText, Flag, Building2, ChevronDown, Plus, Sparkles,
+  LayoutGrid, AlignLeft,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import {
@@ -307,10 +308,195 @@ function MapPanel({ map }: { map: MAPItem[] }) {
   );
 }
 
+// ─── Gantt view ───────────────────────────────────────────────────────────────
+
+function GanttView({ map }: { map: MAPItem[] }) {
+  const today = new Date();
+  const sorted = [...map].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  const allDates = sorted.map(m => new Date(m.dueDate).getTime());
+  const minT = Math.min(today.getTime(), ...allDates);
+  const maxT = Math.max(...allDates);
+  const range = maxT - minT || 86_400_000;
+  const todayPct = Math.min(100, ((today.getTime() - minT) / range) * 100);
+
+  // Generate 3–4 evenly spaced axis labels
+  const axisDates: Date[] = [];
+  const steps = 3;
+  for (let i = 0; i <= steps; i++) {
+    axisDates.push(new Date(minT + (range * i) / steps));
+  }
+
+  return (
+    <div className="space-y-0 rounded-xl border border-slate-200 overflow-hidden">
+      {/* Axis header */}
+      <div className="flex items-center gap-0 bg-slate-50 border-b border-slate-200 px-0">
+        <div className="w-36 shrink-0 px-3 py-2">
+          <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Milestone</span>
+        </div>
+        <div className="flex-1 relative h-7">
+          {axisDates.map((d, i) => {
+            const pct = (i / steps) * 100;
+            return (
+              <span
+                key={i}
+                className="absolute top-1/2 -translate-y-1/2 text-[8px] text-slate-400 font-label"
+                style={{ left: `${pct}%`, transform: `translateX(${i === steps ? '-100%' : i === 0 ? '0' : '-50%'}) translateY(-50%)` }}
+              >
+                {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            );
+          })}
+          {/* Today line in axis */}
+          <div
+            className="absolute top-0 bottom-0 w-px bg-blue-400"
+            style={{ left: `${todayPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Rows */}
+      {sorted.map((item, idx) => {
+        const s = MAP_STATUS[item.status];
+        const Icon = s.icon;
+        const duePct = ((new Date(item.dueDate).getTime() - minT) / range) * 100;
+        const days = daysUntil(item.dueDate);
+
+        const barColor =
+          item.status === 'complete'  ? 'bg-emerald-400' :
+          item.status === 'overdue'   ? 'bg-red-400' :
+          item.status === 'in_progress' ? 'bg-blue-500' : 'bg-slate-300';
+
+        const dotColor =
+          item.status === 'complete'  ? 'bg-emerald-500 ring-emerald-200' :
+          item.status === 'overdue'   ? 'bg-red-500 ring-red-200' :
+          item.status === 'in_progress' ? 'bg-blue-600 ring-blue-200' : 'bg-slate-400 ring-slate-200';
+
+        return (
+          <div
+            key={item.id}
+            className={cn('flex items-center border-b border-slate-100 last:border-0', idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40')}
+          >
+            {/* Label */}
+            <div className="w-36 shrink-0 px-3 py-2.5 flex items-center gap-1.5">
+              <Icon size={9} className={s.color} />
+              <p className={cn(
+                'text-[10px] font-semibold truncate leading-snug',
+                item.status === 'complete' ? 'text-slate-400 line-through' : 'text-slate-700',
+              )}>
+                {item.milestone}
+              </p>
+            </div>
+
+            {/* Track */}
+            <div className="flex-1 relative h-8 pr-2">
+              {/* Today line */}
+              <div
+                className="absolute top-0 bottom-0 w-px bg-blue-300/70 z-10"
+                style={{ left: `${todayPct}%` }}
+              />
+              {/* Background track */}
+              <div className="absolute inset-y-3 left-0 right-2 rounded-full bg-slate-100" />
+              {/* Fill bar */}
+              <div
+                className={cn('absolute top-3 bottom-3 rounded-full opacity-60', barColor)}
+                style={{ left: 0, width: `calc(${duePct}% - 4px)` }}
+              />
+              {/* Due date dot */}
+              <div
+                className={cn('absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 z-20', dotColor)}
+                style={{ left: `${duePct}%`, transform: `translateX(-50%) translateY(-50%)` }}
+              />
+              {/* Due label */}
+              <span className={cn(
+                'absolute top-1/2 -translate-y-1/2 text-[8px] font-bold ml-1 whitespace-nowrap',
+                item.status === 'overdue' ? 'text-red-600' : days < 7 ? 'text-amber-600' : 'text-slate-400',
+              )} style={{ left: `${duePct + 2}%` }}>
+                {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Kanban view ──────────────────────────────────────────────────────────────
+
+function KanbanView({ map }: { map: MAPItem[] }) {
+  const COLUMNS: { key: MAPItem['status']; label: string }[] = [
+    { key: 'pending',     label: 'Pending' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'overdue',     label: 'Overdue' },
+    { key: 'complete',    label: 'Complete' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {COLUMNS.map(col => {
+        const items = map.filter(m => m.status === col.key);
+        const s = MAP_STATUS[col.key];
+        const Icon = s.icon;
+        return (
+          <div key={col.key} className="bg-slate-50 rounded-xl border border-slate-200 p-2 min-h-[80px]">
+            {/* Column header */}
+            <div className={cn('flex items-center gap-1.5 mb-2 px-1 py-0.5 rounded-lg', s.bg)}>
+              <Icon size={9} className={s.color} />
+              <span className={cn('text-[8px] font-black uppercase tracking-widest', s.color)}>{col.label}</span>
+              <span className="ml-auto text-[8px] font-bold text-slate-400">{items.length}</span>
+            </div>
+            {/* Cards */}
+            <div className="space-y-1.5">
+              {items.map(item => {
+                const days = daysUntil(item.dueDate);
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'bg-white rounded-lg border p-2 shadow-sm',
+                      col.key === 'overdue' ? 'border-red-200' :
+                      col.key === 'in_progress' ? 'border-blue-200' :
+                      col.key === 'complete' ? 'border-emerald-100' : 'border-slate-200',
+                    )}
+                  >
+                    <p className={cn(
+                      'text-[10px] font-semibold leading-snug',
+                      col.key === 'complete' ? 'text-slate-400 line-through' : 'text-slate-800',
+                    )}>
+                      {item.milestone}
+                    </p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center text-[7px] font-black text-blue-700 shrink-0">
+                        {item.ownerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <span className="text-[9px] text-slate-400 truncate">{item.ownerName}</span>
+                      <span className={cn(
+                        'ml-auto text-[8px] font-bold shrink-0',
+                        col.key === 'overdue' ? 'text-red-600' :
+                        days < 7 && col.key !== 'complete' ? 'text-amber-600' : 'text-slate-400',
+                      )}>
+                        {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {items.length === 0 && (
+                <p className="text-[9px] text-slate-300 text-center py-4 font-label">Empty</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Close Plan drawer ────────────────────────────────────────────────────────
 
 function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => void }) {
-  const [tab, setTab] = React.useState<'overview' | 'meddpicc' | 'map' | 'stakeholders' | 'risks'>('overview');
+  const [tab, setTab] = React.useState<'overview' | 'plan' | 'stakeholders' | 'risks'>('overview');
+  const [planView, setPlanView] = React.useState<'gantt' | 'kanban'>('gantt');
   const stage = stageMeta(opp.stage);
   const status = STATUS_STYLE[opp.status];
   const days = daysUntil(opp.closeDate);
@@ -324,8 +510,7 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
 
   const TABS = [
     { id: 'overview',     label: 'Overview' },
-    { id: 'meddpicc',     label: 'MEDDPICC' },
-    { id: 'map',          label: 'Action Plan' },
+    { id: 'plan',         label: 'MEDDPICC & Plan' },
     { id: 'stakeholders', label: 'Stakeholders' },
     { id: 'risks',        label: 'Risks' },
   ] as const;
@@ -493,16 +678,48 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
             </>
           )}
 
-          {/* ── MEDDPICC ── */}
-          {tab === 'meddpicc' && cp && <MeddpiccPanel meddpicc={cp.meddpicc} />}
-
-          {/* ── MAP ── */}
-          {tab === 'map' && cp && (
+          {/* ── MEDDPICC & Action Plan ── */}
+          {tab === 'plan' && cp && (
             <>
-              <MapPanel map={cp.map} />
-              <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-blue-300 hover:text-blue-600 transition-colors">
-                <Plus size={12} /> Add Milestone
-              </button>
+              <MeddpiccPanel meddpicc={cp.meddpicc} />
+
+              {/* Action plan section with Gantt/Kanban toggle */}
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
+                    <FileText size={10} /> Mutual Action Plan
+                    <span className="font-normal text-slate-400">
+                      · {cp.map.filter(m => m.status === 'complete').length}/{cp.map.length} complete
+                    </span>
+                  </p>
+                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+                    <button
+                      onClick={() => setPlanView('gantt')}
+                      className={cn(
+                        'flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
+                        planView === 'gantt' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                      )}
+                    >
+                      <AlignLeft size={9} /> Gantt
+                    </button>
+                    <button
+                      onClick={() => setPlanView('kanban')}
+                      className={cn(
+                        'flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
+                        planView === 'kanban' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                      )}
+                    >
+                      <LayoutGrid size={9} /> Kanban
+                    </button>
+                  </div>
+                </div>
+
+                {planView === 'gantt' ? <GanttView map={cp.map} /> : <KanbanView map={cp.map} />}
+
+                <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-blue-300 hover:text-blue-600 transition-colors">
+                  <Plus size={12} /> Add Milestone
+                </button>
+              </section>
             </>
           )}
 
