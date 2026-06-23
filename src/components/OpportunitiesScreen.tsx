@@ -3,7 +3,7 @@ import {
   TrendingUp, DollarSign, Calendar, ChevronRight, X, CheckCircle2,
   Clock, AlertTriangle, Target, User, Users, Shield, Zap, ArrowRight,
   BarChart2, FileText, Flag, Building2, ChevronDown, Plus, Sparkles,
-  LayoutGrid, AlignLeft,
+  LayoutGrid, AlignLeft, List, Columns2,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import {
@@ -492,6 +492,185 @@ function KanbanView({ map }: { map: MAPItem[] }) {
   );
 }
 
+// ─── SFDC-style Path chevron ──────────────────────────────────────────────────
+
+function PathChevron({ currentStage }: { currentStage: OppStage }) {
+  const currentIdx = ACTIVE_STAGES.findIndex(s => s.id === currentStage);
+  return (
+    <div className="flex items-center overflow-x-auto">
+      {ACTIVE_STAGES.map((s, i) => {
+        const done = i < currentIdx;
+        const current = i === currentIdx;
+        return (
+          <React.Fragment key={s.id}>
+            <div className={cn(
+              'flex items-center justify-center shrink-0 h-7 px-2.5 text-[7px] font-black uppercase tracking-wide leading-none rounded transition-colors whitespace-nowrap',
+              current ? 'bg-blue-600 text-white shadow-sm' :
+              done    ? 'bg-blue-100 text-blue-600' :
+                        'text-slate-300',
+            )}>
+              {s.label}
+            </div>
+            {i < ACTIVE_STAGES.length - 1 && (
+              <ChevronRight size={10} className={cn('shrink-0', done || current ? 'text-blue-300' : 'text-slate-200')} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Kanban board card ────────────────────────────────────────────────────────
+
+function KanbanBoardCard({ opp, onClick }: { opp: Opportunity; onClick: () => void }) {
+  const status = STATUS_STYLE[opp.status];
+  const days = daysUntil(opp.closeDate);
+  const mScore = opp.closePlan ? meddpiccScore(opp.closePlan.meddpicc) : 0;
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white border border-slate-200 rounded-lg p-3 cursor-pointer hover:shadow-md hover:border-blue-200 transition-all group"
+    >
+      <p className="text-[11px] font-bold text-blue-700 group-hover:underline leading-snug truncate">
+        {opp.name}
+      </p>
+      <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+        <Building2 size={8} className="shrink-0" /> {opp.accountName}
+      </p>
+      <p className="text-base font-black text-slate-900 mt-2 leading-none">{fmt(opp.arrValue)}</p>
+      <div className="flex items-center justify-between mt-2">
+        <span className={cn(
+          'text-[9px] font-bold flex items-center gap-1',
+          days < 0 ? 'text-red-600' : days < 14 ? 'text-amber-600' : 'text-slate-400',
+        )}>
+          <Calendar size={8} />
+          {days < 0 ? 'Overdue' : new Date(opp.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </span>
+        <span className={cn('text-[8px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1', status.pill)}>
+          <span className={cn('w-1 h-1 rounded-full', status.dot)} />
+          {status.label}
+        </span>
+      </div>
+      {opp.nextStep && (
+        <p className="text-[9px] text-slate-400 mt-1.5 line-clamp-1 leading-snug">
+          → {opp.nextStep}
+        </p>
+      )}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+        <span className="text-[8px] text-slate-400">{opp.probability}% prob.</span>
+        <span className="text-[8px] font-bold text-blue-600">MEDDPICC {mScore}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Kanban board ─────────────────────────────────────────────────────────────
+
+function KanbanBoard({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: string) => void }) {
+  return (
+    <div className="flex gap-3 h-full overflow-x-auto p-5 pb-6 items-start">
+      {ACTIVE_STAGES.map(stage => {
+        const stageOpps = opps.filter(o => o.stage === stage.id);
+        const total = stageOpps.reduce((s, o) => s + o.arrValue, 0);
+        return (
+          <div key={stage.id} className="flex flex-col shrink-0 w-56 bg-slate-50/80 rounded-xl border border-slate-200">
+            {/* Column header */}
+            <div className={cn('px-3 py-2.5 rounded-t-xl border-b border-slate-200', stage.bg)}>
+              <p className={cn('text-[9px] font-black uppercase tracking-widest leading-none', stage.color)}>
+                {stage.label}
+              </p>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[9px] text-slate-500">
+                  {stageOpps.length} {stageOpps.length === 1 ? 'opp' : 'opps'}
+                </span>
+                <span className="text-[10px] font-black text-slate-700">{fmt(total)}</span>
+              </div>
+            </div>
+
+            {/* Cards */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[80px]">
+              {stageOpps
+                .sort((a, b) => b.arrValue - a.arrValue)
+                .map(opp => (
+                  <KanbanBoardCard key={opp.id} opp={opp} onClick={() => onSelect(opp.id)} />
+                ))}
+              {stageOpps.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-300">
+                  <Target size={16} className="opacity-30 mb-1" />
+                  <p className="text-[9px] font-label">No opportunities</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── List view (table) ────────────────────────────────────────────────────────
+
+function ListView({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: string) => void }) {
+  return (
+    <div className="overflow-auto">
+      <table className="w-full text-left border-collapse">
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-slate-50 border-b border-slate-200">
+            {['Opportunity', 'Account', 'Amount', 'Stage', 'Close Date', 'Prob.', 'Status', 'Rep'].map(h => (
+              <th key={h} className="px-4 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {opps.map(opp => {
+            const stage = stageMeta(opp.stage);
+            const status = STATUS_STYLE[opp.status];
+            const days = daysUntil(opp.closeDate);
+            return (
+              <tr
+                key={opp.id}
+                onClick={() => onSelect(opp.id)}
+                className="hover:bg-blue-50/40 cursor-pointer transition-colors"
+              >
+                <td className="px-4 py-3 max-w-[180px]">
+                  <p className="text-[11px] font-bold text-blue-700 truncate">{opp.name}</p>
+                  <p className="text-[9px] text-slate-400 truncate">{opp.type}</p>
+                </td>
+                <td className="px-4 py-3 text-[11px] text-slate-700 whitespace-nowrap">{opp.accountName}</td>
+                <td className="px-4 py-3 text-[11px] font-bold text-slate-900 whitespace-nowrap">{fmt(opp.arrValue)}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={cn('px-2 py-0.5 rounded-full text-[8px] font-black border uppercase tracking-wide', stage.bg, stage.color, stage.border)}>
+                    {stage.label}
+                  </span>
+                </td>
+                <td className={cn(
+                  'px-4 py-3 text-[11px] font-bold whitespace-nowrap',
+                  days < 0 ? 'text-red-600' : days < 14 ? 'text-amber-600' : 'text-slate-600',
+                )}>
+                  {new Date(opp.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {days < 0 && <span className="ml-1 text-[9px] font-normal">(overdue)</span>}
+                </td>
+                <td className="px-4 py-3 text-[11px] text-slate-600 whitespace-nowrap">{opp.probability}%</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className={cn('flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded border w-fit', status.pill)}>
+                    <span className={cn('w-1.5 h-1.5 rounded-full', status.dot)} />
+                    {status.label}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-[10px] text-slate-500 whitespace-nowrap">{opp.rep}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Close Plan drawer ────────────────────────────────────────────────────────
 
 function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => void }) {
@@ -554,28 +733,9 @@ function ClosePlanDrawer({ opp, onClose }: { opp: Opportunity; onClose: () => vo
             </div>
           </div>
 
-          {/* Stage progress */}
+          {/* SFDC-style Path */}
           <div className="mt-3">
-            <div className="flex items-center gap-0.5 mb-1">
-              {ACTIVE_STAGES.map((s, i) => {
-                const currentIdx = ACTIVE_STAGES.findIndex(x => x.id === opp.stage);
-                const done = i <= currentIdx;
-                return (
-                  <div key={s.id} className="flex-1 flex flex-col items-center gap-0.5">
-                    <div className={cn(
-                      'w-full h-1 rounded-full',
-                      done ? i === currentIdx ? 'bg-blue-600' : 'bg-blue-300' : 'bg-slate-200',
-                    )} />
-                    <span className={cn(
-                      'text-[7px] font-bold font-label text-center leading-none',
-                      done ? 'text-blue-600' : 'text-slate-300',
-                    )}>
-                      {s.label.split(' ')[0]}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <PathChevron currentStage={opp.stage} />
           </div>
 
           {/* Next step */}
@@ -810,6 +970,7 @@ export default function OpportunitiesScreen() {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [stageFilter, setStageFilter] = React.useState<OppStage | 'all'>('all');
   const [statusFilter, setStatusFilter] = React.useState<'all' | 'healthy' | 'at_risk' | 'stalled'>('all');
+  const [viewMode, setViewMode] = React.useState<'kanban' | 'list'>('kanban');
 
   const selectedOpp = opportunities.find(o => o.id === selectedId) ?? null;
 
@@ -835,18 +996,41 @@ export default function OpportunitiesScreen() {
             <h1 className="text-lg font-black text-slate-900">Opportunities</h1>
             <p className="text-[11px] text-slate-500 mt-0.5">{opportunities.length} active · Close plans with MEDDPICC</p>
           </div>
-          <div className="flex items-end gap-6">
-            {[
-              { label: 'Weighted Pipeline', value: fmt(totalARR), color: 'text-blue-700' },
-              { label: 'Total Pipeline', value: fmt(totalPipe), color: 'text-slate-900' },
-              { label: 'Commit', value: fmt(commitARR), color: 'text-emerald-700' },
-              { label: 'At Risk', value: atRisk, color: atRisk > 0 ? 'text-amber-600' : 'text-slate-400' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="text-right">
-                <p className={cn('text-xl font-black font-headline leading-none', color)}>{value}</p>
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 font-label mt-0.5">{label}</p>
-              </div>
-            ))}
+          <div className="flex items-end gap-4">
+            {/* View toggle */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5 self-end mb-0.5">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
+                  viewMode === 'kanban' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                <Columns2 size={10} /> Pipeline
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
+                  viewMode === 'list' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                <List size={10} /> List
+              </button>
+            </div>
+            <div className="flex items-end gap-6">
+              {[
+                { label: 'Weighted Pipeline', value: fmt(totalARR), color: 'text-blue-700' },
+                { label: 'Total Pipeline', value: fmt(totalPipe), color: 'text-slate-900' },
+                { label: 'Commit', value: fmt(commitARR), color: 'text-emerald-700' },
+                { label: 'At Risk', value: atRisk, color: atRisk > 0 ? 'text-amber-600' : 'text-slate-400' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-right">
+                  <p className={cn('text-xl font-black font-headline leading-none', color)}>{value}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 font-label mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -894,31 +1078,21 @@ export default function OpportunitiesScreen() {
         </div>
       </div>
 
-      {/* Opportunity grid */}
-      <div className="flex-1 overflow-y-auto p-5">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-400">
-            <Target size={32} className="opacity-20 mb-3" />
-            <p className="text-sm font-label">No opportunities match the current filter</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            {filtered
-              .sort((a, b) => {
-                // sort: commit first, then by ARR desc
-                const stageOrder = ACTIVE_STAGES.map(s => s.id);
-                return (stageOrder.indexOf(b.stage) - stageOrder.indexOf(a.stage)) || b.arrValue - a.arrValue;
-              })
-              .map(opp => (
-                <OppCard
-                  key={opp.id}
-                  opp={opp}
-                  onClick={() => setSelectedId(opp.id)}
-                />
-              ))}
-          </div>
-        )}
-      </div>
+      {/* Main content area */}
+      {filtered.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+          <Target size={32} className="opacity-20 mb-3" />
+          <p className="text-sm font-label">No opportunities match the current filter</p>
+        </div>
+      ) : viewMode === 'kanban' ? (
+        <div className="flex-1 overflow-hidden">
+          <KanbanBoard opps={filtered} onSelect={setSelectedId} />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto">
+          <ListView opps={filtered} onSelect={setSelectedId} />
+        </div>
+      )}
 
       {/* Close Plan drawer */}
       {selectedOpp && (
