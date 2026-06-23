@@ -609,11 +609,11 @@ function LeadDetailModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={handleBackdrop}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className={cn(
-          'flex items-start justify-between p-5 border-b border-slate-100 border-l-4 rounded-tl-2xl',
+          'flex items-start justify-between px-5 py-4 border-b border-slate-100 border-l-4 rounded-tl-2xl shrink-0',
           score && score >= 75 ? 'border-l-emerald-400' : score && score >= 50 ? 'border-l-amber-400' : 'border-l-slate-200',
         )}>
           <div className="flex-1 min-w-0">
@@ -627,6 +627,20 @@ function LeadDetailModal({
                   <Zap size={8} /> {lead.intent_signal} Intent
                 </span>
               )}
+              {/* Classification pill inline in header */}
+              {(() => {
+                const cls = getClassification(lead);
+                return (
+                  <span className={cn(
+                    'px-2 py-0.5 rounded-full text-[9px] font-black font-label uppercase tracking-tight border',
+                    cls === 'Contact'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200',
+                  )}>
+                    {cls}
+                  </span>
+                );
+              })()}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">{lead.title ?? '—'} · {lead.company ?? '—'}</p>
             <VerificationBadges lead={lead} />
@@ -639,334 +653,298 @@ function LeadDetailModal({
           </div>
         </div>
 
-        {/* Body */}
-        <div className="p-5 flex flex-col gap-4">
+        {/* Body — two columns, scrollable */}
+        <div className="overflow-y-auto flex-1">
+          <div className="grid grid-cols-2 gap-0 divide-x divide-slate-100">
 
-          {/* Contact info */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-2">Contact</p>
-            <div className="grid grid-cols-2 gap-2">
-              {lead.email && (
-                <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate">
-                  <Mail size={11} className="shrink-0" /> {lead.email}
-                </a>
-              )}
-              {lead.phone && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                  <Phone size={11} className="shrink-0" /> {lead.phone}
-                </span>
-              )}
-              {lead.title && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate col-span-2">
-                  <User size={11} className="shrink-0" /> {lead.title}
-                </span>
-              )}
-            </div>
-          </section>
+            {/* ── Left column: Contact / Company / Routing / Message ── */}
+            <div className="p-4 flex flex-col gap-3">
 
-          {/* Company / Firmographics */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-2">Company</p>
-            <div className="grid grid-cols-2 gap-2">
-              {lead.company && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold truncate col-span-2">
-                  <Building2 size={11} className="shrink-0 text-slate-400" /> {lead.company}
-                </span>
-              )}
-              {lead.industry && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                  <Tag size={11} className="shrink-0 text-slate-400" /> {lead.industry}
-                </span>
-              )}
-              {lead.company_size && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                  <User size={11} className="shrink-0 text-slate-400" /> {lead.company_size} employees
-                </span>
-              )}
-              {(lead.hq_city || lead.hq_state) && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                  <MapPin size={11} className="shrink-0 text-slate-400" />
-                  {[lead.hq_city, lead.hq_state, lead.hq_country !== 'United States' ? lead.hq_country : null].filter(Boolean).join(', ')}
-                </span>
-              )}
-              {lead.annual_revenue && (
-                <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
-                  <DollarSign size={11} className="shrink-0 text-slate-400" />
-                  ${(lead.annual_revenue / 1_000_000).toFixed(1)}M ARR
-                </span>
-              )}
-            </div>
-          </section>
-
-          {/* AI Enrichment */}
-          {(lead.persona_tier || lead.recommended_action || lead.campaign_sequence || lead.sdr_ready_notes) && (
-            <section className="bg-primary/5 rounded-xl p-3">
-              <p className="text-[9px] font-black uppercase tracking-widest text-primary font-label mb-2 flex items-center gap-1">
-                <Sparkles size={9} /> AI Enrichment
-              </p>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                {lead.persona_tier && (
-                  <div>
-                    <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Persona</p>
-                    <p className="text-xs font-semibold text-slate-700">{lead.persona_tier}</p>
-                  </div>
-                )}
-                {lead.intent_signal && (
-                  <div>
-                    <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Intent</p>
-                    <p className="text-xs font-semibold text-slate-700">{lead.intent_signal}</p>
-                  </div>
-                )}
-                {lead.recommended_action && (
-                  <div className="col-span-2">
-                    <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Recommended Action</p>
-                    <p className="text-xs font-semibold text-primary flex items-center gap-1">
-                      <TrendingUp size={10} /> {lead.recommended_action}
-                    </p>
-                  </div>
-                )}
-                {lead.campaign_sequence && (
-                  <div className="col-span-2">
-                    <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Campaign</p>
-                    <p className="text-xs text-slate-600">{lead.campaign_sequence}</p>
-                  </div>
-                )}
-              </div>
-              {lead.sdr_ready_notes && (
-                <p className="text-[10px] text-slate-600 leading-relaxed border-t border-primary/10 pt-2">{lead.sdr_ready_notes}</p>
-              )}
-            </section>
-          )}
-
-          {/* Message / Intent */}
-          {lead.message && (
-            <section>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-2 flex items-center gap-1">
-                <MessageSquare size={9} /> Message
-              </p>
-              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-3">{lead.message}</p>
-            </section>
-          )}
-
-          {/* Routing */}
-          <section>
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-2 flex items-center gap-1">
-              <BarChart2 size={9} /> Routing
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Queue</p>
-                <p className="text-xs font-semibold text-slate-700 capitalize">{lead.routing_queue?.replace(/_/g, ' ') ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Assigned To</p>
-                <p className="text-xs font-semibold text-slate-700 uppercase">{lead.assigned_to_role ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Territory</p>
-                <p className="text-xs font-semibold text-slate-700">{lead.assigned_territory ?? '—'}</p>
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Source</p>
-                <p className="text-xs font-semibold text-slate-700">{sourceLabel(lead.source)}</p>
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Tier</p>
-                <p className="text-xs font-semibold text-slate-700">{lead.lead_tier.replace(/_/g, ' ')}</p>
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Quality</p>
-                <p className="text-xs font-semibold text-slate-700">{Math.round(lead.data_quality_score * 100)}%</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Signal Breakdown */}
-          {lead.marketo_signal && (() => {
-            const letter = lead.marketo_signal[0];
-            const number = lead.marketo_signal[1];
-            const style = signalStyle(lead.marketo_signal);
-            return (
-              <section className="rounded-xl border border-slate-200 overflow-hidden">
-                {/* Header */}
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
-                    <BarChart2 size={10} /> Signal Breakdown
-                  </p>
-                  <span className={cn('px-2.5 py-1 rounded-full text-sm font-black tracking-wide border', style.bg, style.text, style.border)}>
-                    {lead.marketo_signal}
-                  </span>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  {/* Two pillars side by side */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Demographic Grade */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-3 space-y-1.5">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Demographic Grade</p>
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-2xl font-black font-headline leading-none', style.text)}>{letter}</span>
-                        <span className="text-xs font-bold text-slate-700">{GRADE_LABEL[letter]}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-snug">{GRADE_DESC[letter]}</p>
-                    </div>
-                    {/* Marketing Activity */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-3 space-y-1.5">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Marketing Activity</p>
-                      <div className="flex items-center gap-2">
-                        <span className={cn('text-2xl font-black font-headline leading-none', style.text)}>{number}</span>
-                        <span className="text-xs font-bold text-slate-700">{ACTIVITY_LABEL[number]}</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 leading-snug">{ACTIVITY_DESC[number]}</p>
-                    </div>
-                  </div>
-
-                  {/* Cross-reference explanation */}
-                  <div className="bg-slate-50 rounded-xl p-3 flex items-start gap-3">
-                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{letter}</span>
-                      <ArrowRight size={10} className="text-slate-400" />
-                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{number}</span>
-                      <ArrowRight size={10} className="text-slate-400" />
-                      <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{lead.marketo_signal}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-600 leading-snug">
-                      <span className="font-bold">{GRADE_LABEL[letter]}</span> combined with{' '}
-                      <span className="font-bold">{ACTIVITY_LABEL[number]}</span> produces signal{' '}
-                      <span className="font-bold">{lead.marketo_signal}</span>
-                      {letter <= 'B' && number <= '2'
-                        ? ' — high-priority lead, recommend immediate outreach.'
-                        : letter <= 'B'
-                        ? ' — strong ICP fit but low engagement; consider nurture sequence.'
-                        : number <= '2'
-                        ? ' — active engagement but weaker fit; qualify before investing time.'
-                        : ' — low priority; route to automated nurture.'}
-                    </p>
-                  </div>
-
-                  {lead.marketo_program && (
-                    <p className="text-[9px] text-slate-400 font-label">Program: {lead.marketo_program}</p>
+              {/* Contact info */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5">Contact</p>
+                <div className="space-y-1">
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate">
+                      <Mail size={11} className="shrink-0" /> {lead.email}
+                    </a>
+                  )}
+                  {lead.phone && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                      <Phone size={11} className="shrink-0" /> {lead.phone}
+                    </span>
+                  )}
+                  {lead.title && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                      <User size={11} className="shrink-0" /> {lead.title}
+                    </span>
                   )}
                 </div>
               </section>
-            );
-          })()}
 
-          {/* Lead vs Contact Classification */}
-          {(() => {
-            const cls = getClassification(lead);
-            const isContact = cls === 'Contact';
-            return (
-              <section className={cn(
-                'rounded-xl border overflow-hidden',
-                isContact ? 'border-emerald-200' : 'border-blue-200',
-              )}>
-                {/* Header */}
-                <div className={cn(
-                  'px-4 py-3 border-b flex items-center justify-between',
-                  isContact ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200',
-                )}>
-                  <p className={cn(
-                    'text-[9px] font-black uppercase tracking-widest font-label flex items-center gap-1.5',
-                    isContact ? 'text-emerald-700' : 'text-blue-700',
-                  )}>
-                    <User size={10} /> Classification
-                  </p>
-                  <span className={cn(
-                    'px-3 py-1 rounded-full text-xs font-black tracking-wide border',
-                    isContact
-                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                      : 'bg-blue-100 text-blue-800 border-blue-200',
-                  )}>
-                    {cls}
-                  </span>
-                </div>
-
-                <div className="p-4 space-y-4">
-                  {/* Progress track */}
-                  <ProgressTrack lead={lead} />
-
-                  {/* Criteria grid */}
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      {
-                        label: 'Account',
-                        value: lead.account_match,
-                        yes: 'Exists in CRM',
-                        no: 'Not in CRM yet',
-                      },
-                      {
-                        label: 'Meeting',
-                        value: lead.meeting_secured,
-                        yes: 'Secured',
-                        no: lead.account_match ? 'Not yet secured' : 'N/A',
-                      },
-                      {
-                        label: 'Status',
-                        value: isContact,
-                        yes: 'Contact',
-                        no: 'Lead',
-                      },
-                    ].map(({ label, value, yes, no }) => (
-                      <div key={label} className={cn(
-                        'rounded-xl p-3 border text-center',
-                        value ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200',
-                      )}>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label mb-1">{label}</p>
-                        <div className={cn(
-                          'flex items-center justify-center gap-1',
-                          value ? 'text-emerald-600' : 'text-slate-500',
-                        )}>
-                          {value ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                          <span className="text-xs font-bold">{value ? yes : no}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Rule explanation */}
-                  <div className={cn(
-                    'rounded-xl p-3 text-[10px] leading-relaxed',
-                    isContact ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800',
-                  )}>
-                    {isContact
-                      ? 'Account exists in CRM and a meeting has been secured — this record qualifies as a Contact. Update CRM to reflect the promotion.'
-                      : lead.account_match
-                      ? 'Account exists in CRM but no meeting secured yet. Remains a Lead until a meeting is booked — then auto-promotes to Contact.'
-                      : 'No matching account found in CRM. This is a Lead. Once an account is created and a meeting is booked, it will promote to Contact.'}
-                  </div>
-
-                  {/* Promote CTA — only shown when one step away */}
-                  {lead.account_match && !lead.meeting_secured && (
-                    <button
-                      className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <CheckCircle2 size={11} /> Mark meeting secured → promote to Contact
-                    </button>
+              {/* Company */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5">Company</p>
+                <div className="space-y-1">
+                  {lead.company && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold truncate">
+                      <Building2 size={11} className="shrink-0 text-slate-400" /> {lead.company}
+                    </span>
                   )}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {lead.industry && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <Tag size={10} className="shrink-0 text-slate-400" /> {lead.industry}
+                      </span>
+                    )}
+                    {lead.company_size && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <User size={10} className="shrink-0 text-slate-400" /> {lead.company_size} emp.
+                      </span>
+                    )}
+                    {(lead.hq_city || lead.hq_state) && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <MapPin size={10} className="shrink-0 text-slate-400" />
+                        {[lead.hq_city, lead.hq_state].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                    {lead.annual_revenue && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <DollarSign size={10} className="shrink-0 text-slate-400" />
+                        ${(lead.annual_revenue / 1_000_000).toFixed(1)}M ARR
+                      </span>
+                    )}
+                  </div>
                 </div>
               </section>
-            );
-          })()}
 
-          {/* Battlecard */}
-          {(() => {
-            const card = getBattleCard(lead.title);
-            if (!card) return null;
-            return (
-              <section className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 font-label mb-3 flex items-center gap-1.5">
-                  <span>{card.icon}</span> Battlecard — {card.persona}
+              {/* Routing */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5 flex items-center gap-1">
+                  <BarChart2 size={9} /> Routing
                 </p>
-                <div className="space-y-3">
-                  {card.items.map((item, i) => (
-                    <BattleCardRow key={i} item={item} />
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Queue',    value: lead.routing_queue?.replace(/_/g, ' ') ?? '—' },
+                    { label: 'Role',     value: (lead.assigned_to_role ?? '—').toUpperCase() },
+                    { label: 'Territory',value: lead.assigned_territory ?? '—' },
+                    { label: 'Source',   value: sourceLabel(lead.source) },
+                    { label: 'Tier',     value: lead.lead_tier.replace(/_/g, ' ') },
+                    { label: 'Quality',  value: `${Math.round(lead.data_quality_score * 100)}%` },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">{label}</p>
+                      <p className="text-xs font-semibold text-slate-700 capitalize truncate">{value}</p>
+                    </div>
                   ))}
                 </div>
               </section>
-            );
-          })()}
+
+              {/* Message */}
+              {lead.message && (
+                <section>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5 flex items-center gap-1">
+                    <MessageSquare size={9} /> Message
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-2.5">{lead.message}</p>
+                </section>
+              )}
+
+              {/* Battlecard */}
+              {(() => {
+                const card = getBattleCard(lead.title);
+                if (!card) return null;
+                return (
+                  <section className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 font-label mb-2 flex items-center gap-1.5">
+                      <span>{card.icon}</span> Battlecard — {card.persona}
+                    </p>
+                    <div className="space-y-2">
+                      {card.items.map((item, i) => (
+                        <BattleCardRow key={i} item={item} />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
+            </div>
+
+            {/* ── Right column: AI Enrichment / Signal / Classification ── */}
+            <div className="p-4 flex flex-col gap-3">
+
+              {/* Classification */}
+              {(() => {
+                const cls = getClassification(lead);
+                const isContact = cls === 'Contact';
+                return (
+                  <section className={cn(
+                    'rounded-xl border overflow-hidden',
+                    isContact ? 'border-emerald-200' : 'border-blue-200',
+                  )}>
+                    <div className={cn(
+                      'px-3 py-2 border-b flex items-center justify-between',
+                      isContact ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200',
+                    )}>
+                      <p className={cn(
+                        'text-[9px] font-black uppercase tracking-widest font-label flex items-center gap-1.5',
+                        isContact ? 'text-emerald-700' : 'text-blue-700',
+                      )}>
+                        <User size={9} /> Classification
+                      </p>
+                      <span className={cn(
+                        'px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide border',
+                        isContact
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-200',
+                      )}>
+                        {cls}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-3">
+                      <ProgressTrack lead={lead} />
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Account', value: lead.account_match, yes: 'In CRM',    no: 'Not in CRM' },
+                          { label: 'Meeting', value: lead.meeting_secured, yes: 'Secured', no: lead.account_match ? 'Pending' : 'N/A' },
+                          { label: 'Status',  value: isContact, yes: 'Contact',            no: 'Lead' },
+                        ].map(({ label, value, yes, no }) => (
+                          <div key={label} className={cn(
+                            'rounded-lg p-2 border text-center',
+                            value ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200',
+                          )}>
+                            <p className="text-[7px] font-black uppercase tracking-widest text-slate-400 font-label mb-0.5">{label}</p>
+                            <div className={cn('flex items-center justify-center gap-0.5', value ? 'text-emerald-600' : 'text-slate-500')}>
+                              {value ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                              <span className="text-[10px] font-bold">{value ? yes : no}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className={cn(
+                        'text-[10px] leading-snug rounded-lg p-2',
+                        isContact ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800',
+                      )}>
+                        {isContact
+                          ? 'Account in CRM + meeting secured — qualifies as a Contact. Update SFDC opportunity stage.'
+                          : lead.account_match
+                          ? 'Account in CRM but no meeting yet. Book a meeting to promote to Contact.'
+                          : 'No CRM account found. Create account + book meeting to promote to Contact.'}
+                      </p>
+                      {lead.account_match && !lead.meeting_secured && (
+                        <button
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <CheckCircle2 size={10} /> Mark meeting secured → promote to Contact
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* AI Enrichment */}
+              {(lead.persona_tier || lead.recommended_action || lead.campaign_sequence || lead.sdr_ready_notes) && (
+                <section className="bg-primary/5 rounded-xl p-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-primary font-label mb-2 flex items-center gap-1">
+                    <Sparkles size={9} /> AI Enrichment
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    {lead.persona_tier && (
+                      <div>
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Persona</p>
+                        <p className="text-xs font-semibold text-slate-700">{lead.persona_tier}</p>
+                      </div>
+                    )}
+                    {lead.intent_signal && (
+                      <div>
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Intent</p>
+                        <p className="text-xs font-semibold text-slate-700">{lead.intent_signal}</p>
+                      </div>
+                    )}
+                    {lead.recommended_action && (
+                      <div className="col-span-2">
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Recommended Action</p>
+                        <p className="text-xs font-semibold text-primary flex items-center gap-1">
+                          <TrendingUp size={10} /> {lead.recommended_action}
+                        </p>
+                      </div>
+                    )}
+                    {lead.campaign_sequence && (
+                      <div className="col-span-2">
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Campaign</p>
+                        <p className="text-xs text-slate-600">{lead.campaign_sequence}</p>
+                      </div>
+                    )}
+                  </div>
+                  {lead.sdr_ready_notes && (
+                    <p className="text-[10px] text-slate-600 leading-relaxed border-t border-primary/10 pt-2">{lead.sdr_ready_notes}</p>
+                  )}
+                </section>
+              )}
+
+              {/* Signal Breakdown */}
+              {lead.marketo_signal && (() => {
+                const letter = lead.marketo_signal[0];
+                const number = lead.marketo_signal[1];
+                const style = signalStyle(lead.marketo_signal);
+                return (
+                  <section className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
+                        <BarChart2 size={9} /> Signal Breakdown
+                      </p>
+                      <span className={cn('px-2 py-0.5 rounded-full text-sm font-black tracking-wide border', style.bg, style.text, style.border)}>
+                        {lead.marketo_signal}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white rounded-lg border border-slate-100 p-2.5 space-y-1">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Demographic Grade</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn('text-xl font-black font-headline leading-none', style.text)}>{letter}</span>
+                            <span className="text-[11px] font-bold text-slate-700">{GRADE_LABEL[letter]}</span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 leading-snug">{GRADE_DESC[letter]}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border border-slate-100 p-2.5 space-y-1">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Marketing Activity</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn('text-xl font-black font-headline leading-none', style.text)}>{number}</span>
+                            <span className="text-[11px] font-bold text-slate-700">{ACTIVITY_LABEL[number]}</span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 leading-snug">{ACTIVITY_DESC[number]}</p>
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-2.5 flex items-start gap-2">
+                        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{letter}</span>
+                          <ArrowRight size={9} className="text-slate-400" />
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{number}</span>
+                          <ArrowRight size={9} className="text-slate-400" />
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{lead.marketo_signal}</span>
+                        </div>
+                        <p className="text-[9px] text-slate-600 leading-snug">
+                          {letter <= 'B' && number <= '2'
+                            ? 'High-priority — immediate outreach recommended.'
+                            : letter <= 'B'
+                            ? 'Strong fit, low engagement — nurture sequence.'
+                            : number <= '2'
+                            ? 'Active but weaker fit — qualify before investing.'
+                            : 'Low priority — automated nurture.'}
+                        </p>
+                      </div>
+                      {lead.marketo_program && (
+                        <p className="text-[9px] text-slate-400 font-label truncate">Program: {lead.marketo_program}</p>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+            </div>
+          </div>
         </div>
 
         {/* Footer actions */}
