@@ -444,12 +444,18 @@ type ActiveSection = 'score' | 'milestones' | 'actions' | 'content' | 'coach';
 export interface DealCoachPanelProps {
   opp: Opportunity;
   onMilestoneToggle: (milestoneId: string, checked: boolean) => void;
+  openHunter?: number; // increment to imperatively jump to Hunter tab
 }
 
-export default function DealCoachPanel({ opp, onMilestoneToggle }: DealCoachPanelProps) {
+export default function DealCoachPanel({ opp, onMilestoneToggle, openHunter }: DealCoachPanelProps) {
   const score = React.useMemo(() => calculateScore(opp), [opp]);
   const health = HEALTH_STYLE[score.health];
   const [section, setSection] = React.useState<ActiveSection>('score');
+
+  // Jump to Hunter when footer button triggers it
+  React.useEffect(() => {
+    if (openHunter && openHunter > 0) setSection('coach');
+  }, [openHunter]);
 
   const SECTIONS: { id: ActiveSection; label: string }[] = [
     { id: 'score',      label: 'Score' },

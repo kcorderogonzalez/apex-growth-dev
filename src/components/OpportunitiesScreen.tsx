@@ -1063,6 +1063,7 @@ function ClosePlanDrawer({
   const [incumbentComp, setIncumbentComp] = React.useState<string>(opp.incumbent ?? '');
   const [crayonSyncing, setCrayonSyncing] = React.useState(false);
   const [crayonSynced, setCrayonSynced] = React.useState(false);
+  const [hunterTrigger, setHunterTrigger] = React.useState(0);
   const stage = stageMeta(opp.stage);
   const status = STATUS_STYLE[opp.status];
   const days = daysUntil(opp.closeDate);
@@ -1285,6 +1286,7 @@ function ClosePlanDrawer({
                 <DealCoachPanel
                   opp={opp}
                   onMilestoneToggle={(milestoneId, checked) => onMilestoneToggle(opp.id, milestoneId, checked)}
+                  openHunter={hunterTrigger}
                 />
               )}
 
@@ -1467,8 +1469,11 @@ function ClosePlanDrawer({
           <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-colors">
             <FileText size={11} /> Export Close Plan
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-white transition-colors">
-            <Sparkles size={11} /> AI Coach
+          <button
+            onClick={() => { setTab('coach'); setHunterTrigger(n => n + 1); }}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-sm"
+          >
+            <span className="text-sm leading-none">🤖</span> Ask Hunter
           </button>
           <div className="flex-1" />
           <button onClick={onClose} className="px-4 py-2 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-100 transition-colors">
