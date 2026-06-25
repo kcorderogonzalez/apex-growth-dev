@@ -67,6 +67,10 @@ export interface Opportunity {
   meetingCount?: number;
   isStrategicAccount?: boolean;
   isICP?: boolean;
+  // Competitive intelligence
+  primaryCompetitor?: string;   // competitor id
+  secondaryCompetitor?: string;
+  incumbent?: string;
 }
 
 // ─── Stage metadata ───────────────────────────────────────────────────────────
@@ -104,6 +108,7 @@ export const opportunities: Opportunity[] = [
     product: 'SSE Platform',
     status: 'healthy',
     lastActivityDays: 2, meetingCount: 14, isStrategicAccount: true, isICP: true,
+    primaryCompetitor: 'zscaler', secondaryCompetitor: 'palo_alto', incumbent: 'zscaler',
     milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: true, map_shared: true, technical_validation: true, security_review: true, procurement_documented: true, legal_initiated: true, executive_alignment: true, close_plan_validated: true, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Apex Financial Group ($8.5B AUM) is replacing their legacy Cisco Umbrella + Zscaler stack with Netskope SSE. Executive sponsor is CISO Robert Chang. Deal is in Commit — MSA in legal review, PO expected by June 30.',
@@ -156,6 +161,7 @@ export const opportunities: Opportunity[] = [
     product: 'SASE Platform',
     status: 'healthy',
     lastActivityDays: 3, meetingCount: 9, isStrategicAccount: true, isICP: true,
+    primaryCompetitor: 'palo_alto', incumbent: 'broadcom',
     milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: true, map_shared: true, technical_validation: true, security_review: true, procurement_documented: false, legal_initiated: false, executive_alignment: true, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'BlueCross Digital Health ($5.7B) replacing their existing Symantec SWG + Cisco AnyConnect stack. Full SASE platform deal. Melissa Harrington (VP InfoSec) is champion and economic buyer. In negotiation on pricing — 15% discount requested.',

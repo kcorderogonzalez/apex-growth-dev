@@ -3,7 +3,8 @@ import {
   TrendingUp, DollarSign, Calendar, ChevronRight, X, CheckCircle2,
   Clock, AlertTriangle, Target, User, Users, Shield, Zap, ArrowRight,
   BarChart2, FileText, Flag, Building2, ChevronDown, Plus, Sparkles,
-  LayoutGrid, AlignLeft, List, Columns2,
+  LayoutGrid, AlignLeft, List, Columns2, Swords, Trophy, Lightbulb,
+  Link, RefreshCw, ChevronDown as ChevDown, MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import {
@@ -12,6 +13,7 @@ import {
 } from '@/src/data/opportunityData';
 import { calculateScore } from '@/src/lib/opportunityScoring';
 import DealCoachPanel, { ScoreRingSmall } from './DealCoachPanel';
+import { COMPETITORS, getCompetitor, getWinStrategy, type CompetitorProfile } from '@/src/data/competitorData';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -736,6 +738,311 @@ function ListView({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: stri
   );
 }
 
+// ─── Competitor selector ──────────────────────────────────────────────────────
+
+function CompetitorSelect({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <label className="block text-[8px] font-black uppercase tracking-widest text-slate-500 mb-1.5">{label}</label>
+      <div className="relative">
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full appearance-none bg-white border border-slate-200 rounded-xl px-3 py-2.5 pr-8 text-[11px] font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all"
+        >
+          <option value="">{placeholder}</option>
+          {COMPETITORS.map(c => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+        <ChevDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        {value && (
+          <button
+            onClick={() => onChange('')}
+            className="absolute right-7 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+          >
+            <X size={10} />
+          </button>
+        )}
+      </div>
+      {value && (() => {
+        const c = getCompetitor(value);
+        if (!c) return null;
+        return (
+          <div className={cn('mt-1.5 px-2.5 py-1.5 rounded-lg border text-[9px] font-bold flex items-center gap-1.5', c.bg, c.color, c.border)}>
+            <span className="w-5 h-5 rounded-full bg-white/60 flex items-center justify-center text-[8px] font-black shrink-0">
+              {c.shortName}
+            </span>
+            {c.name} · {c.category}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Compete tab ──────────────────────────────────────────────────────────────
+
+function CompeteTab({
+  primaryComp, secondaryComp, incumbentComp,
+  onPrimaryChange, onSecondaryChange, onIncumbentChange,
+  crayonSyncing, crayonSynced, onCrayonSync,
+}: {
+  primaryComp: string; secondaryComp: string; incumbentComp: string;
+  onPrimaryChange: (v: string) => void;
+  onSecondaryChange: (v: string) => void;
+  onIncumbentChange: (v: string) => void;
+  crayonSyncing: boolean;
+  crayonSynced: boolean;
+  onCrayonSync: () => void;
+}) {
+  const [expandedObj, setExpandedObj] = React.useState<number | null>(null);
+  const strategy = React.useMemo(
+    () => getWinStrategy(primaryComp || undefined, secondaryComp || undefined, incumbentComp || undefined),
+    [primaryComp, secondaryComp, incumbentComp],
+  );
+  const primaryProfile = primaryComp ? getCompetitor(primaryComp) : undefined;
+  const secondaryProfile = secondaryComp ? getCompetitor(secondaryComp) : undefined;
+  const incumbentProfile = incumbentComp ? getCompetitor(incumbentComp) : undefined;
+
+  const hasCompetitors = primaryComp || secondaryComp || incumbentComp;
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Crayon integration banner ── */}
+      <div className={cn(
+        'rounded-xl border p-3.5 flex items-center gap-3',
+        crayonSynced
+          ? 'bg-emerald-50 border-emerald-200'
+          : 'bg-slate-50 border-slate-200',
+      )}>
+        {/* Crayon logo mock */}
+        <div className="shrink-0 w-9 h-9 rounded-lg bg-[#FF5B36] flex items-center justify-center text-white text-[11px] font-black tracking-tight shadow-sm">
+          Cr
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-black text-slate-900">Crayon Competitive Intelligence</p>
+            {crayonSynced && (
+              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                Connected
+              </span>
+            )}
+          </div>
+          <p className="text-[9px] text-slate-500 mt-0.5">
+            {crayonSynced
+              ? 'Battlecards and intel synced · Last updated just now'
+              : 'Pull real-time battlecards, win/loss data, and competitor positioning'}
+          </p>
+        </div>
+        <button
+          onClick={onCrayonSync}
+          disabled={crayonSyncing}
+          className={cn(
+            'shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all',
+            crayonSyncing
+              ? 'bg-slate-100 text-slate-400 cursor-wait'
+              : crayonSynced
+                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                : 'bg-[#FF5B36] text-white hover:opacity-90 shadow-sm',
+          )}
+        >
+          {crayonSyncing ? (
+            <><RefreshCw size={10} className="animate-spin" /> Syncing…</>
+          ) : crayonSynced ? (
+            <><RefreshCw size={10} /> Re-sync</>
+          ) : (
+            <><Link size={10} /> Connect</>
+          )}
+        </button>
+      </div>
+
+      {/* ── Competitor selectors ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <CompetitorSelect
+          label="Primary Competitor"
+          value={primaryComp}
+          onChange={onPrimaryChange}
+          placeholder="Select primary…"
+        />
+        <CompetitorSelect
+          label="Secondary Competitor"
+          value={secondaryComp}
+          onChange={onSecondaryChange}
+          placeholder="Select secondary…"
+        />
+        <CompetitorSelect
+          label="Incumbent"
+          value={incumbentComp}
+          onChange={onIncumbentChange}
+          placeholder="Select incumbent…"
+        />
+      </div>
+
+      {!hasCompetitors ? (
+        /* Empty state */
+        <div className="rounded-xl border-2 border-dashed border-slate-200 p-8 flex flex-col items-center justify-center text-center">
+          <Swords size={28} className="text-slate-200 mb-3" />
+          <p className="text-[11px] font-bold text-slate-400">Select competitors above to unlock win strategy</p>
+          <p className="text-[9px] text-slate-300 mt-1">Battlecards, talking points, and objection handlers will appear here</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+
+          {/* Left column: win strategy + talking points */}
+          <div className="space-y-4">
+
+            {/* How to Win */}
+            <section className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-3 flex items-center gap-1.5">
+                <Trophy size={9} /> How to Win This Deal
+              </p>
+              {strategy.urgency && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mb-3">
+                  <AlertTriangle size={10} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-800 leading-snug">{strategy.urgency}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                {strategy.focusAreas.map((area, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="shrink-0 w-4 h-4 rounded-full bg-emerald-600 text-white text-[8px] font-black flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="text-[11px] text-emerald-900 leading-snug">{area}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Key talking points */}
+            {strategy.keyMessages.length > 0 && (
+              <section className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-blue-700 mb-3 flex items-center gap-1.5">
+                  <MessageSquare size={9} /> Key Talking Points
+                </p>
+                <div className="space-y-2">
+                  {strategy.keyMessages.map((msg, i) => (
+                    <div key={i} className="flex items-start gap-2 bg-white border border-blue-100 rounded-lg px-3 py-2">
+                      <ArrowRight size={9} className="text-blue-400 shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-blue-900 leading-snug italic">{msg}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Right column: competitor profiles + objection handlers + proof */}
+          <div className="space-y-4">
+
+            {/* Active competitor profiles */}
+            {[
+              { profile: primaryProfile, role: 'Primary' },
+              { profile: secondaryProfile, role: 'Secondary' },
+              { profile: incumbentProfile, role: 'Incumbent' },
+            ].filter(({ profile }) => !!profile).map(({ profile, role }) => {
+              const p = profile as CompetitorProfile;
+              return (
+                <section key={p.id} className={cn('rounded-xl border p-3.5', p.bg, p.border)}>
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <div className={cn('w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-black bg-white/70', p.color)}>
+                      {p.shortName}
+                    </div>
+                    <div>
+                      <p className={cn('text-[10px] font-black leading-tight', p.color)}>{p.name}</p>
+                      <p className="text-[8px] text-slate-500">{role} · {p.category}</p>
+                    </div>
+                    <span className={cn('ml-auto text-[7px] font-black uppercase px-1.5 py-0.5 rounded border bg-white/60', p.color, p.border)}>
+                      {role}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[8px] font-black uppercase text-red-600 mb-1">Their Weaknesses</p>
+                      {p.weaknesses.slice(0, 3).map((w, i) => (
+                        <div key={i} className="flex items-start gap-1 mb-1">
+                          <span className="text-red-400 text-[9px] shrink-0 mt-0.5">✕</span>
+                          <p className="text-[9px] text-slate-700 leading-snug">{w}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black uppercase text-emerald-600 mb-1">Our Advantages</p>
+                      {p.keyDifferentiators.slice(0, 3).map((d, i) => (
+                        <div key={i} className="flex items-start gap-1 mb-1">
+                          <span className="text-emerald-500 text-[9px] shrink-0 mt-0.5">✓</span>
+                          <p className="text-[9px] text-slate-700 leading-snug">{d}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              );
+            })}
+
+            {/* Objection handlers */}
+            {strategy.objectionHandlers.length > 0 && (
+              <section className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-600 mb-3 flex items-center gap-1.5">
+                  <Lightbulb size={9} /> Objection Handlers
+                </p>
+                <div className="space-y-2">
+                  {strategy.objectionHandlers.map((oh, i) => (
+                    <div key={i} className="rounded-lg overflow-hidden border border-slate-200 bg-white">
+                      <button
+                        onClick={() => setExpandedObj(expandedObj === i ? null : i)}
+                        className="w-full flex items-start gap-2 px-3 py-2 text-left"
+                      >
+                        <span className="text-amber-500 shrink-0 text-[10px] mt-0.5">?</span>
+                        <p className="text-[10px] font-semibold text-slate-800 flex-1 leading-snug">{oh.objection}</p>
+                        <ChevronRight size={10} className={cn('shrink-0 text-slate-300 transition-transform mt-0.5', expandedObj === i && 'rotate-90')} />
+                      </button>
+                      {expandedObj === i && (
+                        <div className="px-3 pb-2.5 border-t border-slate-100 pt-2">
+                          <p className="text-[10px] text-slate-600 leading-relaxed">{oh.response}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Proof points */}
+            {strategy.proofPoints.length > 0 && (
+              <section className="bg-violet-50 border border-violet-200 rounded-xl p-3.5">
+                <p className="text-[9px] font-black uppercase tracking-widest text-violet-700 mb-2.5 flex items-center gap-1.5">
+                  <Shield size={9} /> Proof Points & References
+                </p>
+                <div className="space-y-1.5">
+                  {strategy.proofPoints.map((pp, i) => (
+                    <div key={i} className="flex items-start gap-2 bg-white border border-violet-100 rounded-lg px-2.5 py-1.5">
+                      <CheckCircle2 size={9} className="text-violet-500 shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-violet-900 leading-snug">{pp}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Close Plan drawer ────────────────────────────────────────────────────────
 
 function ClosePlanDrawer({
@@ -749,12 +1056,18 @@ function ClosePlanDrawer({
   onStageChange: (id: string, stage: OppStage) => void;
   onMilestoneToggle: (oppId: string, milestoneId: string, checked: boolean) => void;
 }) {
-  const [tab, setTab] = React.useState<'coach' | 'overview' | 'plan' | 'stakeholders' | 'risks'>('coach');
+  const [tab, setTab] = React.useState<'coach' | 'overview' | 'plan' | 'stakeholders' | 'risks' | 'compete'>('coach');
   const [planView, setPlanView] = React.useState<'gantt' | 'kanban'>('gantt');
+  const [primaryComp, setPrimaryComp] = React.useState<string>(opp.primaryCompetitor ?? '');
+  const [secondaryComp, setSecondaryComp] = React.useState<string>(opp.secondaryCompetitor ?? '');
+  const [incumbentComp, setIncumbentComp] = React.useState<string>(opp.incumbent ?? '');
+  const [crayonSyncing, setCrayonSyncing] = React.useState(false);
+  const [crayonSynced, setCrayonSynced] = React.useState(false);
   const stage = stageMeta(opp.stage);
   const status = STATUS_STYLE[opp.status];
   const days = daysUntil(opp.closeDate);
   const cp = opp.closePlan;
+  const score = React.useMemo(() => calculateScore(opp), [opp]);
 
   React.useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -768,273 +1081,388 @@ function ClosePlanDrawer({
     { id: 'plan',         label: 'MEDDPICC & Plan' },
     { id: 'stakeholders', label: 'Stakeholders' },
     { id: 'risks',        label: 'Risks' },
+    { id: 'compete',      label: '⚔ Compete' },
   ] as const;
 
+  const handleCrayonSync = () => {
+    setCrayonSyncing(true);
+    setTimeout(() => {
+      setCrayonSyncing(false);
+      setCrayonSynced(true);
+      if (!primaryComp && opp.primaryCompetitor) setPrimaryComp(opp.primaryCompetitor);
+      if (!secondaryComp && opp.secondaryCompetitor) setSecondaryComp(opp.secondaryCompetitor);
+      if (!incumbentComp && opp.incumbent) setIncumbentComp(opp.incumbent);
+    }, 1800);
+  };
+
+  // Win probability color
+  const winPct = Math.round(score.winProbability);
+  const probColor = winPct >= 70 ? 'bg-emerald-500' : winPct >= 40 ? 'bg-blue-500' : 'bg-amber-500';
+
+  // Health badge
+  const healthBadge = {
+    excellent: 'bg-emerald-100 text-emerald-700',
+    healthy:   'bg-blue-100 text-blue-700',
+    at_risk:   'bg-amber-100 text-amber-700',
+    critical:  'bg-red-100 text-red-700',
+  }[score.health];
+  const healthLabel = { excellent: 'Excellent', healthy: 'Healthy', at_risk: 'At Risk', critical: 'Critical' }[score.health];
+
   return (
-    <div className="fixed inset-0 z-50 flex">
+    /* Full-viewport overlay — content centers inside */
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="flex-1 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Drawer */}
-      <div className="w-full max-w-2xl bg-white flex flex-col shadow-2xl overflow-hidden">
+      {/* Modal — fixed height so nothing scrolls out of view */}
+      <div className="relative w-[96vw] max-w-6xl h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className={cn(
-          'px-6 py-4 border-b border-slate-100 border-l-4 shrink-0',
-          stage.border,
-        )}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wide', stage.bg, stage.color, stage.border)}>
-                  {stage.label}
-                </span>
-                <span className={cn('px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1', status.pill)}>
-                  <span className={cn('h-1 w-1 rounded-full', status.dot)} />
-                  {status.label}
-                </span>
-                <span className={cn(
-                  'text-[9px] font-bold flex items-center gap-1',
-                  days < 14 ? 'text-red-600' : days < 30 ? 'text-amber-600' : 'text-slate-500',
-                )}>
-                  <Calendar size={9} /> Close {days < 0 ? 'overdue' : `in ${days}d`}
-                </span>
-              </div>
-              <h2 className="text-base font-black text-slate-900 leading-tight">{opp.name}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">{opp.type} · {opp.product} · {opp.rep}</p>
+        {/* ── Compact header ── */}
+        <div className={cn('shrink-0 px-5 py-3 border-b border-slate-100 flex items-center gap-3 border-l-4', stage.border)}>
+          <ScoreRingSmall score={score.total} size={44} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-black text-slate-900">{opp.name}</h2>
+              <span className={cn('px-2 py-0.5 rounded-full text-[8px] font-black border uppercase tracking-wide', stage.bg, stage.color, stage.border)}>
+                {stage.label}
+              </span>
+              <span className={cn('px-2 py-0.5 rounded-full text-[8px] font-black border flex items-center gap-1', status.pill)}>
+                <span className={cn('h-1 w-1 rounded-full', status.dot)} />
+                {status.label}
+              </span>
+              <span className={cn('text-[8px] font-bold flex items-center gap-1', days < 0 ? 'text-red-600' : days < 14 ? 'text-amber-600' : 'text-slate-400')}>
+                <Calendar size={8} /> Close {days < 0 ? 'overdue' : `in ${days}d`}
+              </span>
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-xl font-black text-slate-900">{fmt(opp.arrValue)}</p>
-              <p className="text-[10px] text-slate-400">ARR · {opp.probability}% prob.</p>
-            </div>
+            <p className="text-[10px] text-slate-500 mt-0.5">{opp.accountName} · {opp.type} · {opp.product} · {opp.rep}</p>
           </div>
-
-          {/* SFDC-style Path — click any stage to move */}
-          <div className="mt-3 space-y-1">
-            <PathChevron
-              currentStage={opp.stage}
-              onStageSelect={newStage => onStageChange(opp.id, newStage)}
-            />
-            <p className="text-[8px] text-slate-400 font-label">Click a stage to move this opportunity</p>
+          <div className="shrink-0 text-right mr-2">
+            <p className="text-xl font-black text-slate-900">{fmt(opp.arrValue)}</p>
+            <p className="text-[9px] text-slate-400">{opp.probability}% probability</p>
           </div>
-
-          {/* Next step */}
-          {opp.nextStep && (
-            <div className="mt-2 flex items-start gap-1.5">
-              <ArrowRight size={10} className="text-blue-500 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-slate-600 leading-snug"><span className="font-bold text-blue-700">Next:</span> {opp.nextStep}</p>
-            </div>
-          )}
+          <button onClick={onClose} className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+            <X size={18} />
+          </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-100 shrink-0 bg-slate-50">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest font-label transition-colors',
-                tab === t.id
-                  ? 'bg-white text-blue-700 border-b-2 border-blue-600'
-                  : 'text-slate-400 hover:text-slate-600',
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* ── Stage path strip ── */}
+        <div className="shrink-0 px-5 py-2 border-b border-slate-100 bg-slate-50/60 flex items-center gap-3">
+          <PathChevron currentStage={opp.stage} onStageSelect={newStage => onStageChange(opp.id, newStage)} />
+          <span className="text-[8px] text-slate-400 shrink-0 italic">Click stage to move</span>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        {/* ── Body: left rail + right content ── */}
+        <div className="flex flex-1 overflow-hidden min-h-0">
 
-          {/* ── Deal Score & Coach ── */}
-          {tab === 'coach' && (
-            <DealCoachPanel
-              opp={opp}
-              onMilestoneToggle={(milestoneId, checked) => onMilestoneToggle(opp.id, milestoneId, checked)}
-            />
-          )}
+          {/* Left rail — always visible, scrolls independently if needed */}
+          <div className="w-64 shrink-0 border-r border-slate-100 flex flex-col overflow-y-auto bg-slate-50/30">
 
-          {/* ── Overview ── */}
-          {tab === 'overview' && cp && (
-            <>
-              {/* Executive summary */}
-              <section className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-[9px] font-black uppercase tracking-widest text-blue-700 font-label mb-2 flex items-center gap-1.5">
-                  <Sparkles size={9} /> Executive Summary
-                </p>
-                <p className="text-xs text-blue-900 leading-relaxed">{cp.executiveSummary}</p>
-              </section>
-
-              {/* KPI grid */}
-              <div className="grid grid-cols-4 gap-2">
-                {[
-                  { label: 'ARR', value: fmt(opp.arrValue), color: 'text-slate-900' },
-                  { label: 'Probability', value: `${opp.probability}%`, color: opp.probability >= 70 ? 'text-emerald-700' : opp.probability >= 40 ? 'text-amber-700' : 'text-red-600' },
-                  { label: 'Close Date', value: new Date(opp.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), color: days < 14 ? 'text-red-600' : 'text-slate-900' },
-                  { label: 'MEDDPICC', value: `${cp ? meddpiccScore(cp.meddpicc) : 0}%`, color: 'text-blue-700' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-white border border-slate-100 rounded-xl p-3 text-center">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label mb-1">{label}</p>
-                    <p className={cn('text-sm font-black', color)}>{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Why Netskope */}
-              <section className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label mb-2 flex items-center gap-1.5">
-                  <Shield size={9} /> Why Netskope
-                </p>
-                <p className="text-xs text-slate-700 leading-relaxed">{cp.whyNetskope}</p>
-              </section>
-
-              {/* Competitive notes */}
-              <section className="bg-amber-50 rounded-xl border border-amber-200 p-4">
-                <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 font-label mb-2 flex items-center gap-1.5">
-                  <Zap size={9} /> Competitive Landscape
-                </p>
-                <p className="text-xs text-amber-900 leading-relaxed">{cp.competitorNotes}</p>
-              </section>
-
-              {/* MAP snapshot — top 3 upcoming */}
-              <section>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-2 flex items-center gap-1.5">
-                  <ArrowRight size={9} /> Upcoming Milestones
-                </p>
-                <div className="space-y-1.5">
-                  {cp.map
-                    .filter(m => m.status !== 'complete')
-                    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-                    .slice(0, 3)
-                    .map(item => {
-                      const s = MAP_STATUS[item.status];
-                      const Icon = s.icon;
-                      return (
-                        <div key={item.id} className="flex items-center gap-2 bg-white border border-slate-100 rounded-lg px-3 py-2">
-                          <Icon size={10} className={s.color} />
-                          <span className="text-[11px] text-slate-700 flex-1 truncate">{item.milestone}</span>
-                          <span className="text-[10px] text-slate-400 shrink-0">
-                            {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </span>
-                        </div>
-                      );
-                    })}
+            {/* Score summary */}
+            <div className="p-4 border-b border-slate-100">
+              <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-2">Deal Score</p>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="text-center">
+                  <p className="text-3xl font-black text-slate-900 leading-none">{score.total}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">/ 100</p>
                 </div>
-              </section>
-            </>
-          )}
-
-          {/* ── MEDDPICC & Action Plan ── */}
-          {tab === 'plan' && cp && (
-            <>
-              <MeddpiccPanel meddpicc={cp.meddpicc} />
-
-              {/* Action plan section with Gantt/Kanban toggle */}
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
-                    <FileText size={10} /> Mutual Action Plan
-                    <span className="font-normal text-slate-400">
-                      · {cp.map.filter(m => m.status === 'complete').length}/{cp.map.length} complete
-                    </span>
-                  </p>
-                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
-                    <button
-                      onClick={() => setPlanView('gantt')}
-                      className={cn(
-                        'flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
-                        planView === 'gantt' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
-                      )}
-                    >
-                      <AlignLeft size={9} /> Gantt
-                    </button>
-                    <button
-                      onClick={() => setPlanView('kanban')}
-                      className={cn(
-                        'flex items-center gap-1 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors',
-                        planView === 'kanban' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
-                      )}
-                    >
-                      <LayoutGrid size={9} /> Kanban
-                    </button>
-                  </div>
-                </div>
-
-                {planView === 'gantt' ? <GanttView map={cp.map} /> : <KanbanView map={cp.map} />}
-
-                <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-blue-300 hover:text-blue-600 transition-colors">
-                  <Plus size={12} /> Add Milestone
-                </button>
-              </section>
-            </>
-          )}
-
-          {/* ── Stakeholders ── */}
-          {tab === 'stakeholders' && cp && (
-            <section className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
-                  <Users size={10} /> Stakeholder Map
-                </p>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {cp.stakeholders.map((s, i) => (
-                  <div key={i} className="px-4 py-3 flex items-start gap-3">
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-black">
-                      {s.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                <div className="flex-1">
+                  <span className={cn('text-[8px] font-black uppercase px-2 py-0.5 rounded-full inline-block mb-1.5', healthBadge)}>
+                    {healthLabel}
+                  </span>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[8px] text-slate-400">
+                      <span>Win Prob.</span>
+                      <span className="font-bold">{winPct}%</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-xs font-bold text-slate-900">{s.name}</p>
-                        <span className={cn(
-                          'px-1.5 py-0.5 rounded border text-[8px] font-bold uppercase tracking-wide capitalize',
-                          SENTIMENT_STYLE[s.sentiment],
-                        )}>
-                          {s.sentiment}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{s.title}</p>
-                      <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded mt-1 inline-block">
-                        {ROLE_LABEL[s.role]}
-                      </span>
+                    <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
+                      <div className={cn('h-full rounded-full', probColor)} style={{ width: `${winPct}%` }} />
                     </div>
                   </div>
-                ))}
+                </div>
               </div>
-              <button className="w-full flex items-center justify-center gap-2 py-2.5 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-colors border-t border-slate-100">
-                <Plus size={12} /> Add Stakeholder
-              </button>
-            </section>
-          )}
-
-          {/* ── Risks ── */}
-          {tab === 'risks' && cp && (
-            <section className="space-y-3">
-              {cp.risks.map((r, i) => (
-                <div key={i} className="rounded-xl border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-2.5 flex items-center gap-2 bg-slate-50 border-b border-slate-100">
-                    <AlertTriangle size={11} className={r.severity === 'high' ? 'text-red-500' : r.severity === 'medium' ? 'text-amber-500' : 'text-emerald-500'} />
-                    <span className={cn('text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border', SEVERITY_STYLE[r.severity])}>
-                      {r.severity} risk
-                    </span>
-                    <p className="text-[11px] font-bold text-slate-800 flex-1">{r.risk}</p>
+              {/* Compact dimension bars */}
+              {[
+                { label: 'ICP Fit',      pct: score.dimensions.icp.pct },
+                { label: 'MEDDPICC',     pct: score.dimensions.meddpicc.pct },
+                { label: 'Stakeholders', pct: score.dimensions.stakeholders.pct },
+                { label: 'Milestones',   pct: score.dimensions.milestones.pct },
+                { label: 'Momentum',     pct: score.dimensions.momentum.pct },
+                { label: 'Revenue',      pct: score.dimensions.revenue.pct },
+              ].map(d => (
+                <div key={d.label} className="flex items-center gap-2 mb-1">
+                  <span className="text-[8px] text-slate-500 w-20 shrink-0 truncate">{d.label}</span>
+                  <div className="flex-1 h-1 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className={cn('h-full rounded-full', d.pct >= 75 ? 'bg-emerald-400' : d.pct >= 50 ? 'bg-blue-400' : d.pct >= 25 ? 'bg-amber-400' : 'bg-red-400')}
+                      style={{ width: `${d.pct}%` }}
+                    />
                   </div>
-                  <div className="px-4 py-2.5">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-1">Mitigation</p>
-                    <p className="text-[11px] text-slate-600 leading-snug">{r.mitigation}</p>
-                  </div>
+                  <span className="text-[8px] font-bold text-slate-400 w-6 text-right">{Math.round(d.pct)}%</span>
                 </div>
               ))}
-              <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-red-300 hover:text-red-500 transition-colors">
-                <Plus size={12} /> Add Risk
-              </button>
-            </section>
-          )}
+            </div>
+
+            {/* Key metrics */}
+            <div className="p-4 border-b border-slate-100">
+              <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-2">Key Info</p>
+              <div className="space-y-2">
+                {[
+                  { label: 'Close Date', value: new Date(opp.closeDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }), cls: days < 0 ? 'text-red-600' : days < 14 ? 'text-amber-600' : 'text-slate-700' },
+                  { label: 'Days Left',  value: days < 0 ? 'Overdue' : `${days} days`,                cls: days < 0 ? 'text-red-600' : days < 14 ? 'text-amber-600' : 'text-slate-700' },
+                  { label: 'Rep',        value: opp.rep,       cls: 'text-slate-700' },
+                  { label: 'Territory',  value: opp.territory, cls: 'text-slate-700' },
+                  { label: 'MEDDPICC',   value: `${cp ? meddpiccScore(cp.meddpicc) : 0}%`, cls: 'text-blue-700 font-bold' },
+                ].map(({ label, value, cls }) => (
+                  <div key={label} className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] text-slate-400 shrink-0">{label}</span>
+                    <span className={cn('text-[10px] font-semibold truncate text-right', cls)}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Next step */}
+            {opp.nextStep && (
+              <div className="p-4 border-b border-slate-100">
+                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-2">Next Step</p>
+                <div className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg p-2.5">
+                  <ArrowRight size={9} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-blue-800 leading-snug">{opp.nextStep}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Stakeholders summary */}
+            {cp && cp.stakeholders.length > 0 && (
+              <div className="p-4">
+                <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-2">Stakeholders</p>
+                <div className="space-y-2">
+                  {cp.stakeholders.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="shrink-0 w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-[9px] font-black">
+                        {s.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-slate-800 truncate">{s.name}</p>
+                        <p className="text-[8px] text-slate-400 truncate">{ROLE_LABEL[s.role]}</p>
+                      </div>
+                      <span className={cn('shrink-0 text-[7px] font-bold px-1.5 py-0.5 rounded border', SENTIMENT_STYLE[s.sentiment])}>
+                        {s.sentiment}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: tab bar + tab content */}
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+
+            {/* Tab bar */}
+            <div className="shrink-0 flex border-b border-slate-100 bg-white">
+              {TABS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={cn(
+                    'flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-colors',
+                    tab === t.id
+                      ? 'bg-white text-blue-700 border-b-2 border-blue-600'
+                      : 'text-slate-400 hover:text-slate-600',
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content — only this area scrolls */}
+            <div className="flex-1 overflow-y-auto p-5">
+
+              {/* ── Deal Score & Coach ── */}
+              {tab === 'coach' && (
+                <DealCoachPanel
+                  opp={opp}
+                  onMilestoneToggle={(milestoneId, checked) => onMilestoneToggle(opp.id, milestoneId, checked)}
+                />
+              )}
+
+              {/* ── Overview ── */}
+              {tab === 'overview' && cp && (
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Left column */}
+                  <div className="space-y-4">
+                    <section className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-blue-700 mb-2 flex items-center gap-1.5">
+                        <Sparkles size={9} /> Executive Summary
+                      </p>
+                      <p className="text-xs text-blue-900 leading-relaxed">{cp.executiveSummary}</p>
+                    </section>
+                    <section className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 mb-2 flex items-center gap-1.5">
+                        <Zap size={9} /> Competitive Landscape
+                      </p>
+                      <p className="text-xs text-amber-900 leading-relaxed">{cp.competitorNotes}</p>
+                    </section>
+                  </div>
+                  {/* Right column */}
+                  <div className="space-y-4">
+                    <section className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+                        <Shield size={9} /> Why Netskope
+                      </p>
+                      <p className="text-xs text-slate-700 leading-relaxed">{cp.whyNetskope}</p>
+                    </section>
+                    <section>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                        <ArrowRight size={9} /> Upcoming Milestones
+                      </p>
+                      <div className="space-y-1.5">
+                        {cp.map
+                          .filter(m => m.status !== 'complete')
+                          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+                          .slice(0, 5)
+                          .map(item => {
+                            const s = MAP_STATUS[item.status];
+                            const Icon = s.icon;
+                            return (
+                              <div key={item.id} className="flex items-center gap-2 bg-white border border-slate-100 rounded-lg px-3 py-2">
+                                <Icon size={10} className={s.color} />
+                                <span className="text-[11px] text-slate-700 flex-1 truncate">{item.milestone}</span>
+                                <span className="text-[10px] text-slate-400 shrink-0">
+                                  {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              )}
+
+              {/* ── MEDDPICC & Action Plan ── */}
+              {tab === 'plan' && cp && (
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Left: MEDDPICC */}
+                  <div>
+                    <MeddpiccPanel meddpicc={cp.meddpicc} />
+                  </div>
+                  {/* Right: MAP */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                        <FileText size={10} /> Mutual Action Plan
+                        <span className="font-normal text-slate-400">
+                          · {cp.map.filter(m => m.status === 'complete').length}/{cp.map.length} done
+                        </span>
+                      </p>
+                      <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+                        <button
+                          onClick={() => setPlanView('gantt')}
+                          className={cn(
+                            'flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-colors',
+                            planView === 'gantt' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                          )}
+                        >
+                          <AlignLeft size={8} /> Gantt
+                        </button>
+                        <button
+                          onClick={() => setPlanView('kanban')}
+                          className={cn(
+                            'flex items-center gap-1 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-colors',
+                            planView === 'kanban' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                          )}
+                        >
+                          <LayoutGrid size={8} /> Kanban
+                        </button>
+                      </div>
+                    </div>
+                    {planView === 'gantt' ? <GanttView map={cp.map} /> : <KanbanView map={cp.map} />}
+                    <button className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 text-[9px] font-black uppercase tracking-widest hover:border-blue-300 hover:text-blue-600 transition-colors">
+                      <Plus size={11} /> Add Milestone
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Stakeholders ── */}
+              {tab === 'stakeholders' && cp && (
+                <div>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {cp.stakeholders.map((s, i) => (
+                      <div key={i} className="bg-white border border-slate-200 rounded-xl p-3 hover:border-blue-200 transition-colors">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="shrink-0 w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-black">
+                            {s.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-slate-900 leading-tight truncate">{s.name}</p>
+                            <p className="text-[9px] text-slate-500 truncate">{s.title}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 leading-tight">
+                            {ROLE_LABEL[s.role]}
+                          </span>
+                          <span className={cn('text-[7px] font-bold px-1.5 py-0.5 rounded border leading-tight capitalize', SENTIMENT_STYLE[s.sentiment])}>
+                            {s.sentiment}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                    <button className="border-2 border-dashed border-slate-200 rounded-xl p-3 flex flex-col items-center justify-center text-slate-300 hover:border-blue-300 hover:text-blue-400 transition-colors min-h-[80px]">
+                      <Plus size={18} />
+                      <span className="text-[8px] font-black uppercase mt-1">Add</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Risks ── */}
+              {tab === 'risks' && cp && (
+                <div className="grid grid-cols-2 gap-3">
+                  {cp.risks.map((r, i) => (
+                    <div key={i} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="px-4 py-2.5 flex items-center gap-2 bg-slate-50 border-b border-slate-100">
+                        <AlertTriangle size={11} className={r.severity === 'high' ? 'text-red-500' : r.severity === 'medium' ? 'text-amber-500' : 'text-emerald-500'} />
+                        <span className={cn('text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0', SEVERITY_STYLE[r.severity])}>
+                          {r.severity}
+                        </span>
+                        <p className="text-[11px] font-bold text-slate-800 flex-1 truncate">{r.risk}</p>
+                      </div>
+                      <div className="px-4 py-2.5">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-1">Mitigation</p>
+                        <p className="text-[11px] text-slate-600 leading-snug">{r.mitigation}</p>
+                      </div>
+                    </div>
+                  ))}
+                  <button className="border-2 border-dashed border-slate-200 rounded-xl p-4 flex items-center justify-center text-slate-300 hover:border-red-300 hover:text-red-400 transition-colors">
+                    <Plus size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* ── Compete ── */}
+              {tab === 'compete' && (
+                <CompeteTab
+                  primaryComp={primaryComp}
+                  secondaryComp={secondaryComp}
+                  incumbentComp={incumbentComp}
+                  onPrimaryChange={setPrimaryComp}
+                  onSecondaryChange={setSecondaryComp}
+                  onIncumbentChange={setIncumbentComp}
+                  crayonSyncing={crayonSyncing}
+                  crayonSynced={crayonSynced}
+                  onCrayonSync={handleCrayonSync}
+                />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Footer */}
+        {/* ── Footer ── */}
         <div className="shrink-0 border-t border-slate-100 px-5 py-3 flex items-center gap-2 bg-white">
           <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-colors">
             <FileText size={11} /> Export Close Plan
