@@ -49,10 +49,10 @@ export interface Opportunity {
   id: string;
   name: string;
   accountName: string;
-  arrValue: number;          // Annual Recurring Revenue
+  arrValue: number;
   type: 'New Business' | 'Expansion' | 'Renewal' | 'Upsell';
   stage: OppStage;
-  probability: number;       // 0–100
+  probability: number;
   closeDate: string;
   nextStep: string;
   daysInStage: number;
@@ -61,6 +61,12 @@ export interface Opportunity {
   product: string;
   status: 'healthy' | 'at_risk' | 'stalled';
   closePlan?: ClosePlan;
+  // Scoring signals
+  milestones?: Record<string, boolean>;
+  lastActivityDays?: number;
+  meetingCount?: number;
+  isStrategicAccount?: boolean;
+  isICP?: boolean;
 }
 
 // ─── Stage metadata ───────────────────────────────────────────────────────────
@@ -97,6 +103,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SSE Platform',
     status: 'healthy',
+    lastActivityDays: 2, meetingCount: 14, isStrategicAccount: true, isICP: true,
+    milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: true, map_shared: true, technical_validation: true, security_review: true, procurement_documented: true, legal_initiated: true, executive_alignment: true, close_plan_validated: true, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Apex Financial Group ($8.5B AUM) is replacing their legacy Cisco Umbrella + Zscaler stack with Netskope SSE. Executive sponsor is CISO Robert Chang. Deal is in Commit — MSA in legal review, PO expected by June 30.',
       meddpicc: {
@@ -147,6 +155,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SASE Platform',
     status: 'healthy',
+    lastActivityDays: 3, meetingCount: 9, isStrategicAccount: true, isICP: true,
+    milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: true, map_shared: true, technical_validation: true, security_review: true, procurement_documented: false, legal_initiated: false, executive_alignment: true, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'BlueCross Digital Health ($5.7B) replacing their existing Symantec SWG + Cisco AnyConnect stack. Full SASE platform deal. Melissa Harrington (VP InfoSec) is champion and economic buyer. In negotiation on pricing — 15% discount requested.',
       meddpicc: {
@@ -196,6 +206,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SSE Platform + DLP',
     status: 'at_risk',
+    lastActivityDays: 5, meetingCount: 5, isStrategicAccount: true, isICP: true,
+    milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: false, success_criteria: false, map_shared: false, technical_validation: false, security_review: false, procurement_documented: false, legal_initiated: false, executive_alignment: false, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Sterling A&D ($12B) evaluating SSE for 18,000 employees across 28 defense facilities. CIO James Whitfield engaged post-Gartner Summit. CMMC 2.0 compliance is primary driver. Proposal being prepared — at risk due to CMMC advisory firm evaluating 3 vendors simultaneously.',
       meddpicc: {
@@ -244,6 +256,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'ZTNA',
     status: 'healthy',
+    lastActivityDays: 4, meetingCount: 7, isStrategicAccount: false, isICP: true,
+    milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: false, map_shared: true, technical_validation: false, security_review: false, procurement_documented: false, legal_initiated: false, executive_alignment: false, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Existing Netskope SWG customer expanding to ZTNA for 3,500 remote manufacturing employees. Sandra Okafor (VP IT) is champion after ransomware incident. POC starts June 27.',
       meddpicc: {
@@ -293,6 +307,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SSE Platform',
     status: 'healthy',
+    lastActivityDays: 6, meetingCount: 2, isStrategicAccount: false, isICP: true,
+    milestones: { discovery: false, pain_documented: false, champion_identified: true, economic_buyer_identified: false, success_criteria: false, map_shared: false, technical_validation: false, security_review: false, procurement_documented: false, legal_initiated: false, executive_alignment: false, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Harbor Financial ($2.1B AUM) — existing CASB customer looking to expand to full SSE. Kevin Nakamura (Director CyberSec) inbound from Gartner MQ download. Discovery phase.',
       meddpicc: {
@@ -336,6 +352,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SASE Platform',
     status: 'healthy',
+    lastActivityDays: 1, meetingCount: 18, isStrategicAccount: false, isICP: true,
+    milestones: { discovery: true, pain_documented: true, champion_identified: true, economic_buyer_identified: true, success_criteria: true, map_shared: true, technical_validation: true, security_review: true, procurement_documented: true, legal_initiated: false, executive_alignment: true, close_plan_validated: true, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Quantum Logistics renewal ($480K) + ZTNA expansion ($240K) = $720K total. Christine Patel (VP Network Engineering) confirmed renewal + expansion. Order form in customer\'s hands. Closing June 30.',
       meddpicc: {
@@ -380,6 +398,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'SASE Platform',
     status: 'at_risk',
+    lastActivityDays: 14, meetingCount: 1, isStrategicAccount: true, isICP: true,
+    milestones: { discovery: false, pain_documented: false, champion_identified: false, economic_buyer_identified: false, success_criteria: false, map_shared: false, technical_validation: false, security_review: false, procurement_documented: false, legal_initiated: false, executive_alignment: false, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Cascade Health ($3.2B) — CISO Angela Merritt badge scanned at RSA. HIPAA SASE inquiry. Early qualification stage. MEDDPICC mostly blank. Need discovery call.',
       meddpicc: {
@@ -423,6 +443,8 @@ export const opportunities: Opportunity[] = [
     rep: 'Elena Martinez',
     product: 'ZTNA + SWG',
     status: 'healthy',
+    lastActivityDays: 8, meetingCount: 2, isStrategicAccount: false, isICP: false,
+    milestones: { discovery: false, pain_documented: false, champion_identified: true, economic_buyer_identified: false, success_criteria: false, map_shared: false, technical_validation: false, security_review: false, procurement_documented: false, legal_initiated: false, executive_alignment: false, close_plan_validated: false, contract_negotiation: false },
     closePlan: {
       executiveSummary: 'Nexus Energy ($1.4B) — Brian Castellano (Sr. Security Architect) inbound from Zero Trust Maturity Assessment. NERC CIP compliance driver. Discovery phase.',
       meddpicc: {

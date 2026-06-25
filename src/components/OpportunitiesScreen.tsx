@@ -10,6 +10,8 @@ import {
   opportunities as INITIAL_OPPORTUNITIES, STAGES, ACTIVE_STAGES,
   type Opportunity, type OppStage, type MAPItem, type Stakeholder,
 } from '@/src/data/opportunityData';
+import { calculateScore } from '@/src/lib/opportunityScoring';
+import DealCoachPanel, { ScoreRingSmall } from './DealCoachPanel';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -538,7 +540,7 @@ function PathChevron({
 function KanbanBoardCard({ opp, onClick, onDragStart }: { opp: Opportunity; onClick: () => void; onDragStart: (id: string) => void }) {
   const status = STATUS_STYLE[opp.status];
   const days = daysUntil(opp.closeDate);
-  const mScore = opp.closePlan ? meddpiccScore(opp.closePlan.meddpicc) : 0;
+  const score = React.useMemo(() => calculateScore(opp), [opp]);
 
   return (
     <div
@@ -547,13 +549,18 @@ function KanbanBoardCard({ opp, onClick, onDragStart }: { opp: Opportunity; onCl
       onClick={onClick}
       className="bg-white border border-slate-200 rounded-lg p-3 cursor-grab active:cursor-grabbing hover:shadow-md hover:border-blue-200 transition-all group select-none"
     >
-      <p className="text-[11px] font-bold text-blue-700 group-hover:underline leading-snug truncate">
-        {opp.name}
-      </p>
-      <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
-        <Building2 size={8} className="shrink-0" /> {opp.accountName}
-      </p>
-      <p className="text-base font-black text-slate-900 mt-2 leading-none">{fmt(opp.arrValue)}</p>
+      <div className="flex items-start gap-2 mb-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-bold text-blue-700 group-hover:underline leading-snug truncate">
+            {opp.name}
+          </p>
+          <p className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+            <Building2 size={8} className="shrink-0" /> {opp.accountName}
+          </p>
+        </div>
+        <ScoreRingSmall score={score.total} size={32} />
+      </div>
+      <p className="text-base font-black text-slate-900 mt-1 leading-none">{fmt(opp.arrValue)}</p>
       <div className="flex items-center justify-between mt-2">
         <span className={cn(
           'text-[9px] font-bold flex items-center gap-1',
@@ -574,7 +581,9 @@ function KanbanBoardCard({ opp, onClick, onDragStart }: { opp: Opportunity; onCl
       )}
       <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
         <span className="text-[8px] text-slate-400">{opp.probability}% prob.</span>
-        <span className="text-[8px] font-bold text-blue-600">MEDDPICC {mScore}%</span>
+        <span className={cn('text-[8px] font-bold', score.total >= 75 ? 'text-emerald-600' : score.total >= 55 ? 'text-blue-600' : score.total >= 35 ? 'text-amber-600' : 'text-red-600')}>
+          {score.total}/100 deal score
+        </span>
       </div>
     </div>
   );
@@ -671,7 +680,7 @@ function ListView({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: stri
       <table className="w-full text-left border-collapse">
         <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50 border-b border-slate-200">
-            {['Opportunity', 'Account', 'Amount', 'Stage', 'Close Date', 'Prob.', 'Status', 'Rep'].map(h => (
+            {['Score', 'Opportunity', 'Account', 'Amount', 'Stage', 'Close Date', 'Prob.', 'Status', 'Rep'].map(h => (
               <th key={h} className="px-4 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">
                 {h}
               </th>
@@ -689,6 +698,9 @@ function ListView({ opps, onSelect }: { opps: Opportunity[]; onSelect: (id: stri
                 onClick={() => onSelect(opp.id)}
                 className="hover:bg-blue-50/40 cursor-pointer transition-colors"
               >
+                <td className="px-4 py-3">
+                  <ScoreRingSmall score={calculateScore(opp).total} size={32} />
+                </td>
                 <td className="px-4 py-3 max-w-[180px]">
                   <p className="text-[11px] font-bold text-blue-700 truncate">{opp.name}</p>
                   <p className="text-[9px] text-slate-400 truncate">{opp.type}</p>
@@ -730,12 +742,14 @@ function ClosePlanDrawer({
   opp,
   onClose,
   onStageChange,
+  onMilestoneToggle,
 }: {
   opp: Opportunity;
   onClose: () => void;
   onStageChange: (id: string, stage: OppStage) => void;
+  onMilestoneToggle: (oppId: string, milestoneId: string, checked: boolean) => void;
 }) {
-  const [tab, setTab] = React.useState<'overview' | 'plan' | 'stakeholders' | 'risks'>('overview');
+  const [tab, setTab] = React.useState<'coach' | 'overview' | 'plan' | 'stakeholders' | 'risks'>('coach');
   const [planView, setPlanView] = React.useState<'gantt' | 'kanban'>('gantt');
   const stage = stageMeta(opp.stage);
   const status = STATUS_STYLE[opp.status];
@@ -749,6 +763,7 @@ function ClosePlanDrawer({
   }, [onClose]);
 
   const TABS = [
+    { id: 'coach',        label: '✦ Deal Score' },
     { id: 'overview',     label: 'Overview' },
     { id: 'plan',         label: 'MEDDPICC & Plan' },
     { id: 'stakeholders', label: 'Stakeholders' },
@@ -832,6 +847,14 @@ function ClosePlanDrawer({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+          {/* ── Deal Score & Coach ── */}
+          {tab === 'coach' && (
+            <DealCoachPanel
+              opp={opp}
+              onMilestoneToggle={(milestoneId, checked) => onMilestoneToggle(opp.id, milestoneId, checked)}
+            />
+          )}
 
           {/* ── Overview ── */}
           {tab === 'overview' && cp && (
@@ -1045,6 +1068,13 @@ export default function OpportunitiesScreen() {
     setTimeout(() => setStageChangedId(null), 2000);
   }, []);
 
+  const handleMilestoneToggle = React.useCallback((oppId: string, milestoneId: string, checked: boolean) => {
+    setOpps(prev => prev.map(o => o.id === oppId
+      ? { ...o, milestones: { ...(o.milestones ?? {}), [milestoneId]: checked } }
+      : o,
+    ));
+  }, []);
+
   const selectedOpp = opps.find(o => o.id === selectedId) ?? null;
 
   const filtered = opps.filter(o => {
@@ -1186,6 +1216,7 @@ export default function OpportunitiesScreen() {
           opp={selectedOpp}
           onClose={() => setSelectedId(null)}
           onStageChange={handleStageChange}
+          onMilestoneToggle={handleMilestoneToggle}
         />
       )}
     </div>
