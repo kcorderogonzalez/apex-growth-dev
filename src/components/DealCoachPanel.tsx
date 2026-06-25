@@ -1,8 +1,8 @@
 import React from 'react';
 import {
-  Target, CheckCircle2, Circle, ChevronDown, ChevronUp, Sparkles,
+  Target, CheckCircle2, ChevronDown, ChevronUp, Sparkles,
   AlertTriangle, TrendingUp, ArrowRight, BookOpen, Shield, Users,
-  FileText, BarChart2, Zap, Award, Loader2, RefreshCw,
+  FileText, BarChart2, Zap, Award, Loader2, Send, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { type Opportunity } from '@/src/data/opportunityData';
@@ -115,171 +115,307 @@ const CONTENT_COLOR: Record<ContentRec['priority'], string> = {
   low:    'bg-slate-50 border-slate-200 text-slate-600',
 };
 
-// ─── AI Coach section ─────────────────────────────────────────────────────────
+// ─── Hunter AI chat ────────────────────────────────────────────────────────────
 
-function AICoachSection({ opp, score }: { opp: Opportunity; score: OpportunityScore }) {
-  const [state, setState] = React.useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [response, setResponse] = React.useState<{
-    coachingInsight: string;
-    dealHealthSummary: string;
-    topRisks: string[];
-    winFactors: string[];
-    forecastAssessment: string;
-  } | null>(null);
+interface ChatMessage {
+  role: 'hunter' | 'user';
+  text: string;
+}
 
-  const buildPrompt = () => {
-    const ms = MILESTONE_DEFS.filter(m => (opp.milestones ?? {})[m.id]).map(m => m.label);
-    const missingMs = MILESTONE_DEFS.filter(m => !(opp.milestones ?? {})[m.id]).map(m => m.label);
-    const meddpicc = opp.closePlan?.meddpicc;
+const SUGGESTED_QUESTIONS = [
+  'What\'s the biggest risk to closing this deal?',
+  'How should I handle the legal delay?',
+  'Who should I call this week?',
+  'Am I discounting too early?',
+  'How do I strengthen my champion?',
+  'What\'s my best competitive angle?',
+];
 
-    return `You are a senior enterprise sales coach at Netskope. Analyze this opportunity and provide concise, practical coaching.
+function buildSystemPrompt(opp: Opportunity, score: OpportunityScore): string {
+  const completedMs = MILESTONE_DEFS.filter(m => (opp.milestones ?? {})[m.id]).map(m => m.label);
+  const missingMs   = MILESTONE_DEFS.filter(m => !(opp.milestones ?? {})[m.id]).map(m => m.label);
+  const cp = opp.closePlan;
 
-OPPORTUNITY: ${opp.name}
-ACCOUNT: ${opp.accountName}
-ARR: $${(opp.arrValue / 1000).toFixed(0)}K
-STAGE: ${opp.stage.replace(/_/g, ' ')}
-DEAL SCORE: ${score.total}/100 (${score.health.replace('_', ' ')})
-WIN PROBABILITY: ${score.winProbability}%
-STATUS: ${opp.status}
-DAYS IN STAGE: ${opp.daysInStage}
-CLOSE DATE: ${opp.closeDate}
-NEXT STEP: ${opp.nextStep || 'Not defined'}
+  return `You are Hunter, an elite enterprise sales coach embedded in Netskope's revenue intelligence platform. You are direct, strategic, and speak like a seasoned deal coach — not a generic assistant. You know this deal inside-out.
 
-MEDDPICC GAPS: ${score.dimensions.meddpicc.gaps.join(', ') || 'None'}
-MEDDPICC STRENGTHS: ${score.dimensions.meddpicc.factors.join(', ') || 'None'}
+DEAL BRIEFING:
+- Opportunity: ${opp.name}
+- Account: ${opp.accountName}
+- ARR: $${(opp.arrValue / 1_000).toFixed(0)}K
+- Stage: ${opp.stage.replace(/_/g, ' ')}
+- Deal Score: ${score.total}/100 (${score.health.replace('_', ' ')})
+- Win Probability: ${Math.round(score.winProbability)}%
+- Status: ${opp.status.replace('_', ' ')}
+- Close Date: ${opp.closeDate} (${Math.round((new Date(opp.closeDate).getTime() - Date.now()) / 86_400_000)} days)
+- Days in Stage: ${opp.daysInStage}
+- Rep: ${opp.rep}
+- Next Step: ${opp.nextStep || 'Not defined'}
 
-STAKEHOLDER GAPS: ${score.dimensions.stakeholders.gaps.join(', ') || 'None'}
-MILESTONES COMPLETED (${score.milestoneProgress.completed}/${score.milestoneProgress.total}): ${ms.join(', ') || 'None'}
-MILESTONES PENDING: ${missingMs.slice(0, 5).join(', ')}
+MEDDPICC:
+- Metrics: ${cp?.meddpicc.metrics || 'Not documented'}
+- Economic Buyer: ${cp?.meddpicc.economicBuyer || 'Not identified'}
+- Decision Criteria: ${cp?.meddpicc.decisionCriteria || 'Unknown'}
+- Decision Process: ${cp?.meddpicc.decisionProcess || 'Unknown'}
+- Paper Process: ${cp?.meddpicc.paperProcess || 'Unknown'}
+- Identify Pain: ${cp?.meddpicc.identifyPain || 'Not documented'}
+- Champion: ${cp?.meddpicc.champion || 'Not identified'}
+- Competition: ${cp?.meddpicc.competition || 'Unknown'}
 
-KEY RISKS: ${(opp.closePlan?.risks ?? []).map(r => r.risk).join('; ') || 'None documented'}
-COMPETITOR NOTES: ${opp.closePlan?.competitorNotes || 'Unknown'}
+SCORE GAPS: ${score.dimensions.meddpicc.gaps.concat(score.dimensions.stakeholders.gaps).join('; ') || 'None'}
+STRENGTHS: ${score.strengths.join('; ') || 'None'}
+RISKS: ${score.risks.join('; ') || 'None documented'}
 
-Provide a JSON response (only JSON, no markdown) with these exact keys:
-{
-  "coachingInsight": "2-3 sentence direct coaching insight about the biggest opportunity to improve this deal",
-  "dealHealthSummary": "1 sentence honest assessment of deal health and where it stands",
-  "topRisks": ["risk 1", "risk 2", "risk 3"],
-  "winFactors": ["factor 1", "factor 2", "factor 3"],
-  "forecastAssessment": "1 sentence on forecast confidence and what needs to happen to close on time"
-}`;
-  };
+MILESTONES DONE (${score.milestoneProgress.completed}/${score.milestoneProgress.total}): ${completedMs.join(', ') || 'None'}
+MILESTONES PENDING: ${missingMs.join(', ') || 'All complete'}
 
-  const runCoach = async () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      setState('error');
-      return;
-    }
-    setState('loading');
+STAKEHOLDERS: ${(cp?.stakeholders ?? []).map(s => `${s.name} (${s.role.replace('_', ' ')}, ${s.sentiment})`).join('; ') || 'Not mapped'}
+DEAL RISKS: ${(cp?.risks ?? []).map(r => `${r.severity}: ${r.risk}`).join('; ') || 'None documented'}
+COMPETITOR NOTES: ${cp?.competitorNotes || 'Unknown competitive landscape'}
+WHY NETSKOPE: ${cp?.whyNetskope || 'Not documented'}
+
+COACHING STYLE:
+- Be direct and actionable — no fluffy motivational talk
+- Give specific, deal-relevant advice, not generic sales tips
+- Reference actual deal details (names, dates, amounts) in your responses
+- Keep responses concise — 3–5 sentences max unless asked to elaborate
+- If something looks risky, say so clearly
+- You can push back on the rep if the deal looks shaky
+- Format using short paragraphs; use bullet points only when listing 3+ items`;
+}
+
+async function callGemini(
+  systemPrompt: string,
+  history: ChatMessage[],
+  userMessage: string,
+): Promise<string> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error('no_key');
+
+  const contents = [
+    ...history.map(m => ({
+      role: m.role === 'hunter' ? 'model' : 'user',
+      parts: [{ text: m.text }],
+    })),
+    { role: 'user', parts: [{ text: userMessage }] },
+  ];
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: { temperature: 0.6, maxOutputTokens: 400 },
+      }),
+    },
+  );
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('empty_response');
+  return text.trim();
+}
+
+function HunterBubble({ text }: { text: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      {/* Hunter avatar */}
+      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center text-white text-[10px] font-black shadow-sm">
+        H
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-black text-slate-500 mb-1">Hunter</p>
+        <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm">
+          <p className="text-[11px] text-slate-800 leading-relaxed whitespace-pre-wrap">{text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserBubble({ text }: { text: string }) {
+  return (
+    <div className="flex items-start gap-2.5 flex-row-reverse">
+      <div className="shrink-0 w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 text-[10px] font-black">
+        Me
+      </div>
+      <div className="flex-1 min-w-0 flex justify-end">
+        <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-3.5 py-2.5 max-w-[85%]">
+          <p className="text-[11px] text-white leading-relaxed">{text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThinkingDots() {
+  return (
+    <div className="flex items-start gap-2.5">
+      <div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center text-white text-[10px] font-black shadow-sm">
+        H
+      </div>
+      <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HunterChat({ opp, score }: { opp: Opportunity; score: OpportunityScore }) {
+  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [input, setInput] = React.useState('');
+  const [thinking, setThinking] = React.useState(false);
+  const [noKey, setNoKey] = React.useState(false);
+  const [initialized, setInitialized] = React.useState(false);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const systemPrompt = React.useMemo(() => buildSystemPrompt(opp, score), [opp, score]);
+
+  // Auto-scroll on new messages
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, thinking]);
+
+  // Hunter's opening message on first render
+  React.useEffect(() => {
+    if (initialized) return;
+    setInitialized(true);
+    const openingMsg = `Hey — I'm Hunter, your deal coach on ${opp.name}.\n\nDeal score is **${score.total}/100** (${score.health.replace('_', ' ')}), with ${Math.round(score.winProbability)}% win probability. ${score.risks[0] ? `The biggest risk I see right now: ${score.risks[0].toLowerCase()}.` : 'The deal looks clean so far.'}\n\nWhat do you want to work through?`;
+    setMessages([{ role: 'hunter', text: openingMsg }]);
+  }, []);
+
+  const send = React.useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || thinking) return;
+    setInput('');
+
+    const userMsg: ChatMessage = { role: 'user', text: trimmed };
+    setMessages(prev => [...prev, userMsg]);
+    setThinking(true);
+
     try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: buildPrompt() }] }],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
-          }),
-        }
-      );
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      setResponse(parsed);
-      setState('done');
-    } catch {
-      setState('error');
+      const reply = await callGemini(systemPrompt, messages, trimmed);
+      setMessages(prev => [...prev, { role: 'hunter', text: reply }]);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === 'no_key') {
+        setNoKey(true);
+        setMessages(prev => [...prev, {
+          role: 'hunter',
+          text: 'I need a Gemini API key to respond. Add VITE_GEMINI_API_KEY to your .env file and reload.',
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: 'hunter',
+          text: 'Sorry, something went wrong on my end. Try again in a moment.',
+        }]);
+      }
+    } finally {
+      setThinking(false);
+    }
+  }, [thinking, messages, systemPrompt]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send(input);
     }
   };
 
-  if (state === 'idle') {
-    return (
-      <button
-        onClick={runCoach}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:from-blue-700 hover:to-violet-700 transition-all shadow-md"
-      >
-        <Sparkles size={12} /> Analyze with AI Coach
-      </button>
-    );
-  }
+  const reset = () => {
+    setMessages([]);
+    setInitialized(false);
+    setNoKey(false);
+  };
 
-  if (state === 'loading') {
-    return (
-      <div className="flex items-center justify-center gap-2 py-8 text-slate-400">
-        <Loader2 size={16} className="animate-spin" />
-        <span className="text-xs font-label">AI Coach is analyzing the deal…</span>
-      </div>
-    );
-  }
-
-  if (state === 'error') {
-    return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700 space-y-1">
-        <p className="font-bold">AI Coach unavailable</p>
-        <p className="text-[11px]">Add <code className="bg-red-100 px-1 rounded">VITE_GEMINI_API_KEY</code> to your .env file to enable AI coaching.</p>
-      </div>
-    );
-  }
-
-  if (!response) return null;
+  const showSuggestions = messages.length <= 1 && !thinking;
 
   return (
-    <div className="space-y-3">
-      {/* Coaching insight */}
-      <div className="bg-gradient-to-br from-blue-50 to-violet-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-[9px] font-black uppercase tracking-widest text-blue-700 mb-2 flex items-center gap-1.5">
-          <Sparkles size={9} /> AI Coach Insight
-        </p>
-        <p className="text-[11px] text-blue-900 leading-relaxed">{response.coachingInsight}</p>
+    <div className="flex flex-col" style={{ height: '420px' }}>
+
+      {/* Hunter header */}
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-violet-50 rounded-t-xl">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center text-white text-sm font-black shadow-md">
+          H
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-black text-slate-900">Hunter</p>
+            <span className="flex items-center gap-1 text-[9px] text-emerald-600 font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
+              Deal Coach · Online
+            </span>
+          </div>
+          <p className="text-[9px] text-slate-500">AI-powered · knows this deal · speaks straight</p>
+        </div>
+        <button
+          onClick={reset}
+          title="Reset conversation"
+          className="p-1.5 rounded-lg text-slate-400 hover:bg-white hover:text-slate-600 transition-colors"
+        >
+          <RotateCcw size={12} />
+        </button>
       </div>
 
-      {/* Deal health + forecast */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">Deal Health</p>
-          <p className="text-[10px] text-slate-700 leading-snug">{response.dealHealthSummary}</p>
-        </div>
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">Forecast View</p>
-          <p className="text-[10px] text-slate-700 leading-snug">{response.forecastAssessment}</p>
-        </div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-slate-50/40">
+        {messages.map((msg, i) =>
+          msg.role === 'hunter'
+            ? <HunterBubble key={i} text={msg.text} />
+            : <UserBubble key={i} text={msg.text} />,
+        )}
+        {thinking && <ThinkingDots />}
+        <div ref={bottomRef} />
       </div>
 
-      {/* Risks & win factors */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1">
-          <p className="text-[8px] font-black uppercase tracking-widest text-red-600 flex items-center gap-1">
-            <AlertTriangle size={8} /> Top Risks
-          </p>
-          {response.topRisks.map((r, i) => (
-            <div key={i} className="flex items-start gap-1.5 bg-red-50 rounded-lg px-2 py-1.5 border border-red-100">
-              <span className="text-[8px] font-black text-red-400 shrink-0 mt-0.5">{i + 1}</span>
-              <span className="text-[9px] text-red-800 leading-snug">{r}</span>
-            </div>
-          ))}
+      {/* Suggested questions */}
+      {showSuggestions && (
+        <div className="shrink-0 px-4 pt-2 pb-1 border-t border-slate-100 bg-white">
+          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-2">Quick questions</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SUGGESTED_QUESTIONS.map(q => (
+              <button
+                key={q}
+                onClick={() => send(q)}
+                className="text-[9px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition-colors border border-slate-200 hover:border-blue-200"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="space-y-1">
-          <p className="text-[8px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1">
-            <TrendingUp size={8} /> Win Factors
-          </p>
-          {response.winFactors.map((f, i) => (
-            <div key={i} className="flex items-start gap-1.5 bg-emerald-50 rounded-lg px-2 py-1.5 border border-emerald-100">
-              <span className="text-[8px] font-black text-emerald-500 shrink-0 mt-0.5">{i + 1}</span>
-              <span className="text-[9px] text-emerald-900 leading-snug">{f}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
-      <button
-        onClick={runCoach}
-        className="flex items-center gap-1 text-[9px] text-slate-400 hover:text-blue-600 transition-colors"
-      >
-        <RefreshCw size={9} /> Re-analyze
-      </button>
+      {/* Input */}
+      <div className="shrink-0 px-4 py-3 border-t border-slate-100 bg-white flex items-end gap-2">
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask Hunter anything about this deal…"
+          rows={1}
+          disabled={noKey}
+          className="flex-1 resize-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent transition-all disabled:opacity-50"
+          style={{ maxHeight: '80px' }}
+          onInput={e => {
+            const el = e.currentTarget;
+            el.style.height = 'auto';
+            el.style.height = `${Math.min(el.scrollHeight, 80)}px`;
+          }}
+        />
+        <button
+          onClick={() => send(input)}
+          disabled={!input.trim() || thinking || noKey}
+          className="shrink-0 w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+        >
+          {thinking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -320,7 +456,7 @@ export default function DealCoachPanel({ opp, onMilestoneToggle }: DealCoachPane
     { id: 'milestones', label: 'Milestones' },
     { id: 'actions',    label: 'Next Actions' },
     { id: 'content',    label: 'Content' },
-    { id: 'coach',      label: '✨ AI Coach' },
+    { id: 'coach',      label: '🤖 Hunter' },
   ];
 
   return (
@@ -530,9 +666,9 @@ export default function DealCoachPanel({ opp, onMilestoneToggle }: DealCoachPane
         </div>
       )}
 
-      {/* ── AI Coach ── */}
+      {/* ── Hunter AI chat ── */}
       {section === 'coach' && (
-        <AICoachSection opp={opp} score={score} />
+        <HunterChat opp={opp} score={score} />
       )}
     </div>
   );
