@@ -2,12 +2,14 @@ import React from 'react';
 import {
   Mail, Linkedin, Sparkles, AlertTriangle, CheckCircle2, XCircle,
   Clock, Loader2, RefreshCw, ChevronDown, ChevronRight, Zap,
-  MapPin, Globe, TrendingUp, Target,
+  MapPin, Globe, TrendingUp, Target, X, Building2, Phone, User,
+  DollarSign, Tag, BarChart2, MessageSquare, HelpCircle, ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useInboundLeads } from '@/src/hooks/useInboundLeads';
 import type { Account, ProcessedInboundLead } from '@/src/types';
 import { PgSeqContext } from './PgSeqDrawer';
+import { getBattleCard } from '@/src/data/battlecards';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,178 @@ function formatRelativeTime(isoString: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
+}
+
+// ─── Signal helpers ───────────────────────────────────────────────────────────
+
+const GRADE_LABEL: Record<string, string> = {
+  A: 'Top ICP', B: 'Strong ICP', C: 'Moderate ICP', D: 'Weak ICP', E: 'Non-ICP', F: 'Junk Data',
+};
+const GRADE_DESC: Record<string, string> = {
+  A: 'Matches all key ICP criteria: industry, company size, title, and tech stack.',
+  B: 'Matches most ICP criteria with minor gaps.',
+  C: 'Partial ICP match — some criteria met, others missing.',
+  D: 'Limited ICP alignment. May be worth nurturing.',
+  E: 'Outside target ICP. Low conversion probability.',
+  F: 'Invalid or unusable data — likely spam or bot.',
+};
+const ACTIVITY_LABEL: Record<string, string> = {
+  '1': 'High Activity', '2': 'Medium-High Activity', '3': 'Medium Activity', '4': 'Minimal Activity', '5': 'No Activity',
+};
+const ACTIVITY_DESC: Record<string, string> = {
+  '1': 'Multiple high-intent actions: form fills, content downloads, webinar attendance, or repeated site visits.',
+  '2': 'Several engagement signals — opened emails, visited key pages, or attended 1 event.',
+  '3': 'Some activity detected: email opens or a single content interaction.',
+  '4': 'Minimal engagement — possibly a single page visit or one email open.',
+  '5': 'No recorded marketing activity. Cold or unengaged.',
+};
+
+const SIGNAL_COLOR: Record<string, { bg: string; text: string; border: string }> = {
+  A1: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-300' },
+  A2: { bg: 'bg-emerald-50',  text: 'text-emerald-700', border: 'border-emerald-200' },
+  B1: { bg: 'bg-cyan-100',    text: 'text-cyan-800',    border: 'border-cyan-300'    },
+  B2: { bg: 'bg-cyan-50',     text: 'text-cyan-700',    border: 'border-cyan-200'    },
+  C1: { bg: 'bg-amber-100',   text: 'text-amber-800',   border: 'border-amber-300'   },
+  C2: { bg: 'bg-amber-50',    text: 'text-amber-700',   border: 'border-amber-200'   },
+};
+function signalStyle(sig: string | null) {
+  if (!sig) return { bg: 'bg-slate-100', text: 'text-slate-400', border: 'border-slate-200' };
+  return SIGNAL_COLOR[sig] ?? { bg: 'bg-slate-100', text: 'text-slate-500', border: 'border-slate-200' };
+}
+
+function SignalBadge({ signal }: { signal: string | null }) {
+  const [pos, setPos] = React.useState<{ x: number; y: number } | null>(null);
+  const ref = React.useRef<HTMLDivElement>(null);
+  if (!signal) return null;
+  const letter = signal[0];
+  const number = signal[1];
+  const style = signalStyle(signal);
+
+  const handleEnter = () => {
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ x: r.left + r.width / 2, y: r.top });
+    }
+  };
+
+  return (
+    <>
+      <div
+        ref={ref}
+        className="relative inline-flex"
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setPos(null)}
+      >
+        <span className={cn(
+          'px-2 py-0.5 rounded-full text-[11px] font-black font-label tracking-wide border flex items-center gap-1 cursor-default',
+          style.bg, style.text, style.border,
+        )}>
+          {signal}
+          <HelpCircle size={9} className="opacity-60" />
+        </span>
+      </div>
+
+      {/* Fixed-position tooltip — escapes all overflow:hidden ancestors */}
+      {pos && (
+        <div
+          className="pointer-events-none"
+          style={{
+            position: 'fixed',
+            left: pos.x,
+            top: pos.y - 8,
+            transform: 'translate(-50%, -100%)',
+            zIndex: 9999,
+          }}
+        >
+          <div className="w-60 rounded-xl p-3 shadow-2xl text-[10px]"
+            style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #0369a1 100%)' }}>
+            {/* Header */}
+            <p className="font-black text-[9px] uppercase tracking-widest text-blue-200 mb-1">Marketo Signal</p>
+            <p className="font-black text-white text-sm mb-2">{signal} &mdash; {GRADE_LABEL[letter]} · {ACTIVITY_LABEL[number]}</p>
+            <div className="space-y-2 border-t border-white/20 pt-2">
+              <div>
+                <span className="text-blue-200 text-[8px] font-black uppercase tracking-widest">Demographic Grade ({letter})</span>
+                <p className="text-white/90 leading-snug mt-0.5">{GRADE_DESC[letter]}</p>
+              </div>
+              <div>
+                <span className="text-blue-200 text-[8px] font-black uppercase tracking-widest">Marketing Activity ({number})</span>
+                <p className="text-white/90 leading-snug mt-0.5">{ACTIVITY_DESC[number]}</p>
+              </div>
+            </div>
+            {/* Arrow */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-full"
+              style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '6px solid #0369a1', width: 0, height: 0 }} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Lead / Contact classification ───────────────────────────────────────────
+
+type Classification = 'Lead' | 'Contact';
+type ClassificationStep = 'inbound' | 'account' | 'meeting' | 'contact';
+
+function getClassification(lead: ProcessedInboundLead): Classification {
+  return lead.account_match && lead.meeting_secured ? 'Contact' : 'Lead';
+}
+
+function getProgressStep(lead: ProcessedInboundLead): ClassificationStep {
+  if (lead.meeting_secured) return 'contact';
+  if (lead.account_match) return 'meeting';
+  return 'inbound';
+}
+
+const PROGRESS_STEPS: { id: ClassificationStep; label: string }[] = [
+  { id: 'inbound',  label: 'Inbound' },
+  { id: 'account',  label: 'Account matched' },
+  { id: 'meeting',  label: 'Meeting pending' },
+  { id: 'contact',  label: 'Contact' },
+];
+
+const STEP_ORDER: ClassificationStep[] = ['inbound', 'account', 'meeting', 'contact'];
+
+function ProgressTrack({ lead, compact = false }: { lead: ProcessedInboundLead; compact?: boolean }) {
+  const currentStep = getProgressStep(lead);
+  const currentIdx = STEP_ORDER.indexOf(currentStep);
+
+  return (
+    <div className={cn('flex items-center gap-0', compact ? 'mt-1.5' : '')}>
+      {PROGRESS_STEPS.map((step, i) => {
+        const done = i <= currentIdx;
+        const isLast = i === PROGRESS_STEPS.length - 1;
+        return (
+          <React.Fragment key={step.id}>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className={cn(
+                'rounded-full flex items-center justify-center transition-colors',
+                compact ? 'w-2 h-2' : 'w-3 h-3',
+                done
+                  ? step.id === 'contact' ? 'bg-emerald-500' : 'bg-blue-500'
+                  : 'bg-slate-200',
+              )} />
+              {!compact && (
+                <span className={cn(
+                  'text-[7px] font-bold font-label whitespace-nowrap',
+                  done ? step.id === 'contact' ? 'text-emerald-600' : 'text-blue-600' : 'text-slate-300',
+                )}>
+                  {step.label}
+                </span>
+              )}
+            </div>
+            {!isLast && (
+              <div className={cn(
+                'flex-1 h-0.5 transition-colors',
+                compact ? 'w-3' : 'w-6',
+                i < currentIdx ? step.id === 'meeting' ? 'bg-emerald-400' : 'bg-blue-400' : 'bg-slate-200',
+              )} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 }
 
 function intentColor(signal: string | null) {
@@ -115,12 +289,14 @@ function VerificationBadges({ lead }: { lead: ProcessedInboundLead }) {
 function LeadCard({
   lead,
   isReviewed,
+  onOpen,
   onMarkReviewed,
   onStartSequence,
   onLaunchHunter,
 }: {
   lead: ProcessedInboundLead;
   isReviewed: boolean;
+  onOpen: (lead: ProcessedInboundLead) => void;
   onMarkReviewed: (id: string) => void;
   onStartSequence: (ctx: PgSeqContext) => void;
   onLaunchHunter: (account: Account) => void;
@@ -130,7 +306,8 @@ function LeadCard({
 
   return (
     <div
-      onClick={() => onMarkReviewed(lead.id)}
+      onClick={() => onOpen(lead)}
+      title="Click to view details"
       className={cn(
         'border-b border-slate-100 hover:bg-slate-50/60 transition-colors cursor-pointer group border-l-4',
         isReviewed
@@ -157,13 +334,26 @@ function LeadCard({
             </p>
           </div>
           <div className="flex flex-col items-end shrink-0">
-            <span className={cn('text-lg font-black font-headline leading-none', scoreColor(score))}>
-              {score ?? '—'}
-            </span>
-            <div className="w-10 h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
-              <div className={cn('h-full rounded-full', scoreBg(score))} style={{ width: `${score ?? 0}%` }} />
-            </div>
+            <SignalBadge signal={lead.marketo_signal} />
           </div>
+        </div>
+
+        {/* Classification pill + track */}
+        <div className="flex items-center gap-2 mt-1">
+          {(() => {
+            const cls = getClassification(lead);
+            return (
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-[8px] font-black font-label uppercase tracking-tight',
+                cls === 'Contact'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200',
+              )}>
+                {cls}
+              </span>
+            );
+          })()}
+          <ProgressTrack lead={lead} compact />
         </div>
 
         {/* Verification badges */}
@@ -311,6 +501,7 @@ function SecondaryQueue({
   icon: Icon,
   accentClass,
   reviewedIds,
+  onOpen,
   onMarkReviewed,
   onStartSequence,
   onLaunchHunter,
@@ -320,6 +511,7 @@ function SecondaryQueue({
   icon: React.ElementType;
   accentClass: string;
   reviewedIds: Set<string>;
+  onOpen: (lead: ProcessedInboundLead) => void;
   onMarkReviewed: (id: string) => void;
   onStartSequence: (ctx: PgSeqContext) => void;
   onLaunchHunter: (account: Account) => void;
@@ -344,6 +536,529 @@ function SecondaryQueue({
           key={lead.id}
           lead={lead}
           isReviewed={reviewedIds.has(lead.id)}
+          onOpen={onOpen}
+          onMarkReviewed={onMarkReviewed}
+          onStartSequence={onStartSequence}
+          onLaunchHunter={onLaunchHunter}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Battlecard row ───────────────────────────────────────────────────────────
+
+function BattleCardRow({ item }: { item: { title: string; pitch: string; question: string } }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="bg-white rounded-lg border border-amber-100 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:bg-amber-50/50 transition-colors"
+      >
+        <span className="text-[10px] font-bold text-slate-700 leading-snug">{item.title}</span>
+        <ChevronDown size={12} className={cn('shrink-0 text-amber-500 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2 border-t border-amber-100">
+          <p className="text-[10px] text-slate-600 leading-relaxed pt-2">{item.pitch}</p>
+          <div className="bg-amber-50 rounded-lg p-2 border border-amber-200">
+            <p className="text-[8px] font-black uppercase tracking-widest text-amber-600 mb-1">Discovery Question</p>
+            <p className="text-[10px] text-amber-900 font-medium leading-snug italic">"{item.question}"</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Lead detail modal ────────────────────────────────────────────────────────
+
+function LeadDetailModal({
+  lead,
+  isReviewed,
+  onClose,
+  onMarkReviewed,
+  onStartSequence,
+  onLaunchHunter,
+}: {
+  lead: ProcessedInboundLead;
+  isReviewed: boolean;
+  onClose: () => void;
+  onMarkReviewed: (id: string) => void;
+  onStartSequence: (ctx: PgSeqContext) => void;
+  onLaunchHunter: (account: Account) => void;
+}) {
+  const fullName = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Unknown';
+  const score = lead.priority_score;
+
+  // Close on backdrop click
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  // Close on Escape
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      onClick={handleBackdrop}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className={cn(
+          'flex items-start justify-between px-5 py-4 border-b border-slate-100 border-l-4 rounded-tl-2xl shrink-0',
+          score && score >= 75 ? 'border-l-emerald-400' : score && score >= 50 ? 'border-l-amber-400' : 'border-l-slate-200',
+        )}>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-black text-slate-900">{fullName}</h2>
+              {lead.intent_signal && (
+                <span className={cn(
+                  'px-2 py-0.5 rounded-full text-[9px] font-black font-label uppercase tracking-tight flex items-center gap-0.5',
+                  intentColor(lead.intent_signal),
+                )}>
+                  <Zap size={8} /> {lead.intent_signal} Intent
+                </span>
+              )}
+              {/* Classification pill inline in header */}
+              {(() => {
+                const cls = getClassification(lead);
+                return (
+                  <span className={cn(
+                    'px-2 py-0.5 rounded-full text-[9px] font-black font-label uppercase tracking-tight border',
+                    cls === 'Contact'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200',
+                  )}>
+                    {cls}
+                  </span>
+                );
+              })()}
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">{lead.title ?? '—'} · {lead.company ?? '—'}</p>
+            <VerificationBadges lead={lead} />
+          </div>
+          <div className="flex items-center gap-3 shrink-0 ml-3">
+            {lead.marketo_signal && <SignalBadge signal={lead.marketo_signal} />}
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body — two columns, scrollable */}
+        <div className="overflow-y-auto flex-1">
+          <div className="grid grid-cols-2 gap-0 divide-x divide-slate-100">
+
+            {/* ── Left column: Contact / Company / Routing / Message ── */}
+            <div className="p-4 flex flex-col gap-3">
+
+              {/* Contact info */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5">Contact</p>
+                <div className="space-y-1">
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 text-xs text-primary hover:underline truncate">
+                      <Mail size={11} className="shrink-0" /> {lead.email}
+                    </a>
+                  )}
+                  {lead.phone && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                      <Phone size={11} className="shrink-0" /> {lead.phone}
+                    </span>
+                  )}
+                  {lead.title && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-600 truncate">
+                      <User size={11} className="shrink-0" /> {lead.title}
+                    </span>
+                  )}
+                </div>
+              </section>
+
+              {/* Company */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5">Company</p>
+                <div className="space-y-1">
+                  {lead.company && (
+                    <span className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold truncate">
+                      <Building2 size={11} className="shrink-0 text-slate-400" /> {lead.company}
+                    </span>
+                  )}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {lead.industry && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <Tag size={10} className="shrink-0 text-slate-400" /> {lead.industry}
+                      </span>
+                    )}
+                    {lead.company_size && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <User size={10} className="shrink-0 text-slate-400" /> {lead.company_size} emp.
+                      </span>
+                    )}
+                    {(lead.hq_city || lead.hq_state) && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <MapPin size={10} className="shrink-0 text-slate-400" />
+                        {[lead.hq_city, lead.hq_state].filter(Boolean).join(', ')}
+                      </span>
+                    )}
+                    {lead.annual_revenue && (
+                      <span className="flex items-center gap-1 text-xs text-slate-600 truncate">
+                        <DollarSign size={10} className="shrink-0 text-slate-400" />
+                        ${(lead.annual_revenue / 1_000_000).toFixed(1)}M ARR
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* Routing */}
+              <section>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5 flex items-center gap-1">
+                  <BarChart2 size={9} /> Routing
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Queue',    value: lead.routing_queue?.replace(/_/g, ' ') ?? '—' },
+                    { label: 'Role',     value: (lead.assigned_to_role ?? '—').toUpperCase() },
+                    { label: 'Territory',value: lead.assigned_territory ?? '—' },
+                    { label: 'Source',   value: sourceLabel(lead.source) },
+                    { label: 'Tier',     value: lead.lead_tier.replace(/_/g, ' ') },
+                    { label: 'Quality',  value: `${Math.round(lead.data_quality_score * 100)}%` },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">{label}</p>
+                      <p className="text-xs font-semibold text-slate-700 capitalize truncate">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Message */}
+              {lead.message && (
+                <section>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label mb-1.5 flex items-center gap-1">
+                    <MessageSquare size={9} /> Message
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 rounded-xl p-2.5">{lead.message}</p>
+                </section>
+              )}
+
+              {/* Battlecard */}
+              {(() => {
+                const card = getBattleCard(lead.title);
+                if (!card) return null;
+                return (
+                  <section className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 font-label mb-2 flex items-center gap-1.5">
+                      <span>{card.icon}</span> Battlecard — {card.persona}
+                    </p>
+                    <div className="space-y-2">
+                      {card.items.map((item, i) => (
+                        <BattleCardRow key={i} item={item} />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
+            </div>
+
+            {/* ── Right column: AI Enrichment / Signal / Classification ── */}
+            <div className="p-4 flex flex-col gap-3">
+
+              {/* Classification */}
+              {(() => {
+                const cls = getClassification(lead);
+                const isContact = cls === 'Contact';
+                return (
+                  <section className={cn(
+                    'rounded-xl border overflow-hidden',
+                    isContact ? 'border-emerald-200' : 'border-blue-200',
+                  )}>
+                    <div className={cn(
+                      'px-3 py-2 border-b flex items-center justify-between',
+                      isContact ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200',
+                    )}>
+                      <p className={cn(
+                        'text-[9px] font-black uppercase tracking-widest font-label flex items-center gap-1.5',
+                        isContact ? 'text-emerald-700' : 'text-blue-700',
+                      )}>
+                        <User size={9} /> Classification
+                      </p>
+                      <span className={cn(
+                        'px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wide border',
+                        isContact
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-200',
+                      )}>
+                        {cls}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-3">
+                      <ProgressTrack lead={lead} />
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Account', value: lead.account_match, yes: 'In CRM',    no: 'Not in CRM' },
+                          { label: 'Meeting', value: lead.meeting_secured, yes: 'Secured', no: lead.account_match ? 'Pending' : 'N/A' },
+                          { label: 'Status',  value: isContact, yes: 'Contact',            no: 'Lead' },
+                        ].map(({ label, value, yes, no }) => (
+                          <div key={label} className={cn(
+                            'rounded-lg p-2 border text-center',
+                            value ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200',
+                          )}>
+                            <p className="text-[7px] font-black uppercase tracking-widest text-slate-400 font-label mb-0.5">{label}</p>
+                            <div className={cn('flex items-center justify-center gap-0.5', value ? 'text-emerald-600' : 'text-slate-500')}>
+                              {value ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                              <span className="text-[10px] font-bold">{value ? yes : no}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className={cn(
+                        'text-[10px] leading-snug rounded-lg p-2',
+                        isContact ? 'bg-emerald-50 text-emerald-800' : 'bg-blue-50 text-blue-800',
+                      )}>
+                        {isContact
+                          ? 'Account in CRM + meeting secured — qualifies as a Contact. Update SFDC opportunity stage.'
+                          : lead.account_match
+                          ? 'Account in CRM but no meeting yet. Book a meeting to promote to Contact.'
+                          : 'No CRM account found. Create account + book meeting to promote to Contact.'}
+                      </p>
+                      {lead.account_match && !lead.meeting_secured && (
+                        <button
+                          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 transition-colors"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <CheckCircle2 size={10} /> Mark meeting secured → promote to Contact
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+              {/* AI Enrichment */}
+              {(lead.persona_tier || lead.recommended_action || lead.campaign_sequence || lead.sdr_ready_notes) && (
+                <section className="bg-primary/5 rounded-xl p-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest text-primary font-label mb-2 flex items-center gap-1">
+                    <Sparkles size={9} /> AI Enrichment
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    {lead.persona_tier && (
+                      <div>
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Persona</p>
+                        <p className="text-xs font-semibold text-slate-700">{lead.persona_tier}</p>
+                      </div>
+                    )}
+                    {lead.intent_signal && (
+                      <div>
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Intent</p>
+                        <p className="text-xs font-semibold text-slate-700">{lead.intent_signal}</p>
+                      </div>
+                    )}
+                    {lead.recommended_action && (
+                      <div className="col-span-2">
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Recommended Action</p>
+                        <p className="text-xs font-semibold text-primary flex items-center gap-1">
+                          <TrendingUp size={10} /> {lead.recommended_action}
+                        </p>
+                      </div>
+                    )}
+                    {lead.campaign_sequence && (
+                      <div className="col-span-2">
+                        <p className="text-[8px] text-slate-400 font-label uppercase tracking-widest">Campaign</p>
+                        <p className="text-xs text-slate-600">{lead.campaign_sequence}</p>
+                      </div>
+                    )}
+                  </div>
+                  {lead.sdr_ready_notes && (
+                    <p className="text-[10px] text-slate-600 leading-relaxed border-t border-primary/10 pt-2">{lead.sdr_ready_notes}</p>
+                  )}
+                </section>
+              )}
+
+              {/* Signal Breakdown */}
+              {lead.marketo_signal && (() => {
+                const letter = lead.marketo_signal[0];
+                const number = lead.marketo_signal[1];
+                const style = signalStyle(lead.marketo_signal);
+                return (
+                  <section className="rounded-xl border border-slate-200 overflow-hidden">
+                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 font-label flex items-center gap-1.5">
+                        <BarChart2 size={9} /> Signal Breakdown
+                      </p>
+                      <span className={cn('px-2 py-0.5 rounded-full text-sm font-black tracking-wide border', style.bg, style.text, style.border)}>
+                        {lead.marketo_signal}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white rounded-lg border border-slate-100 p-2.5 space-y-1">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Demographic Grade</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn('text-xl font-black font-headline leading-none', style.text)}>{letter}</span>
+                            <span className="text-[11px] font-bold text-slate-700">{GRADE_LABEL[letter]}</span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 leading-snug">{GRADE_DESC[letter]}</p>
+                        </div>
+                        <div className="bg-white rounded-lg border border-slate-100 p-2.5 space-y-1">
+                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 font-label">Marketing Activity</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn('text-xl font-black font-headline leading-none', style.text)}>{number}</span>
+                            <span className="text-[11px] font-bold text-slate-700">{ACTIVITY_LABEL[number]}</span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 leading-snug">{ACTIVITY_DESC[number]}</p>
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-2.5 flex items-start gap-2">
+                        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{letter}</span>
+                          <ArrowRight size={9} className="text-slate-400" />
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{number}</span>
+                          <ArrowRight size={9} className="text-slate-400" />
+                          <span className={cn('px-1.5 py-0.5 rounded text-[9px] font-black', style.bg, style.text)}>{lead.marketo_signal}</span>
+                        </div>
+                        <p className="text-[9px] text-slate-600 leading-snug">
+                          {letter <= 'B' && number <= '2'
+                            ? 'High-priority — immediate outreach recommended.'
+                            : letter <= 'B'
+                            ? 'Strong fit, low engagement — nurture sequence.'
+                            : number <= '2'
+                            ? 'Active but weaker fit — qualify before investing.'
+                            : 'Low priority — automated nurture.'}
+                        </p>
+                      </div>
+                      {lead.marketo_program && (
+                        <p className="text-[9px] text-slate-400 font-label truncate">Program: {lead.marketo_program}</p>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+
+            </div>
+          </div>
+        </div>
+
+        {/* Footer actions */}
+        <div className="sticky bottom-0 bg-white border-t border-slate-100 p-4 flex items-center gap-2 rounded-b-2xl">
+          <button
+            onClick={() => {
+              onLaunchHunter({
+                id: lead.id,
+                name: lead.company ?? 'Unknown',
+                type: 'Prospect',
+                arr: 0,
+                healthScore: 0,
+                industry: lead.industry ?? 'Unknown',
+                tier: 'Mid-Market',
+                territory: lead.assigned_territory ?? 'Unknown',
+              });
+              onClose();
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-tertiary/10 text-tertiary text-xs font-black uppercase tracking-widest rounded-xl hover:bg-tertiary hover:text-white transition-all"
+          >
+            <Sparkles size={12} /> Launch Hunter
+          </button>
+          <button
+            onClick={() => {
+              onStartSequence({
+                contactName: fullName,
+                contactTitle: lead.title ?? undefined,
+                company: lead.company ?? '',
+                channel: 'email',
+                signal: lead.source_detail ?? lead.source,
+                sourcePanel: 'inbound',
+                itemId: lead.id,
+              });
+              onClose();
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-black uppercase tracking-widest rounded-xl hover:bg-primary hover:text-white transition-all"
+          >
+            <Mail size={12} /> Email Sequence
+          </button>
+          <button
+            onClick={() => {
+              onStartSequence({
+                contactName: fullName,
+                contactTitle: lead.title ?? undefined,
+                company: lead.company ?? '',
+                channel: 'linkedin',
+                signal: lead.source_detail ?? lead.source,
+                sourcePanel: 'inbound',
+                itemId: lead.id,
+              });
+              onClose();
+            }}
+            className="p-2 hover:bg-[#0077b5]/10 hover:text-[#0077b5] text-slate-400 rounded-xl transition-all"
+            title="LinkedIn Sequence"
+          >
+            <Linkedin size={14} />
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => { onMarkReviewed(lead.id); onClose(); }}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl transition-all',
+              isReviewed
+                ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+            )}
+          >
+            <CheckCircle2 size={12} />
+            {isReviewed ? 'Move to New' : 'Mark Reviewed'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Reviewed queue (collapsible) ────────────────────────────────────────────
+
+function ReviewedQueue({
+  leads,
+  onOpen,
+  onMarkReviewed,
+  onStartSequence,
+  onLaunchHunter,
+}: {
+  leads: ProcessedInboundLead[];
+  onOpen: (lead: ProcessedInboundLead) => void;
+  onMarkReviewed: (id: string) => void;
+  onStartSequence: (ctx: PgSeqContext) => void;
+  onLaunchHunter: (account: Account) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div className="border-t-2 border-slate-100">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+      >
+        <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-500 font-label">
+          <CheckCircle2 size={10} className="text-slate-400" />
+          Reviewed · {leads.length}
+          <span className="text-[8px] font-normal normal-case tracking-normal text-slate-400">
+            — open any lead to move it back to New
+          </span>
+        </span>
+        {open ? <ChevronDown size={10} className="text-slate-400" /> : <ChevronRight size={10} className="text-slate-400" />}
+      </button>
+      {open && leads.map(lead => (
+        <LeadCard
+          key={lead.id}
+          lead={lead}
+          isReviewed={true}
+          onOpen={onOpen}
           onMarkReviewed={onMarkReviewed}
           onStartSequence={onStartSequence}
           onLaunchHunter={onLaunchHunter}
@@ -376,9 +1091,16 @@ export default function InboundLeadsPanel({
     refresh,
   } = useInboundLeads(userTerritory);
 
+  const [selectedLead, setSelectedLead] = React.useState<ProcessedInboundLead | null>(null);
+  const [view, setView] = React.useState<'queue' | 'details'>('queue');
+
   const allPrimary = [...primaryQueue, ...rsmQueue];
-  const newLeads = allPrimary.filter(l => !reviewedIds.has(l.id));
-  const reviewed = allPrimary.filter(l => reviewedIds.has(l.id));
+  const newLeads = allPrimary
+    .filter(l => !reviewedIds.has(l.id))
+    .sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0));
+  const reviewed = allPrimary
+    .filter(l => reviewedIds.has(l.id))
+    .sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0));
   const avgScore = allPrimary.length
     ? Math.round(allPrimary.reduce((s, l) => s + (l.priority_score ?? 0), 0) / allPrimary.length)
     : 0;
@@ -402,6 +1124,16 @@ export default function InboundLeadsPanel({
 
   return (
     <div className="flex flex-col">
+      {selectedLead && (
+        <LeadDetailModal
+          lead={selectedLead}
+          isReviewed={reviewedIds.has(selectedLead.id)}
+          onClose={() => setSelectedLead(null)}
+          onMarkReviewed={onMarkReviewed}
+          onStartSequence={onStartSequence}
+          onLaunchHunter={onLaunchHunter}
+        />
+      )}
       {isProcessing && <ProcessingBanner progress={processingProgress} />}
 
       {/* Stats bar */}
@@ -424,14 +1156,36 @@ export default function InboundLeadsPanel({
               </div>
             ))}
           </div>
-          <button
-            onClick={refresh}
-            disabled={isLoading || isProcessing}
-            className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all disabled:opacity-40"
-            title={lastRefreshed ? `Updated ${formatRelativeTime(lastRefreshed.toISOString())}` : 'Refresh'}
-          >
-            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-1">
+            <div className="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+              <button
+                onClick={() => setView('queue')}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest font-label transition-all',
+                  view === 'queue' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                Queue
+              </button>
+              <button
+                onClick={() => setView('details')}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest font-label transition-all',
+                  view === 'details' ? 'bg-white text-primary shadow-sm' : 'text-slate-400 hover:text-slate-600',
+                )}
+              >
+                Details
+              </button>
+            </div>
+            <button
+              onClick={refresh}
+              disabled={isLoading || isProcessing}
+              className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all disabled:opacity-40"
+              title={lastRefreshed ? `Updated ${formatRelativeTime(lastRefreshed.toISOString())}` : 'Refresh'}
+            >
+              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
 
         {/* Score distribution bar */}
@@ -461,87 +1215,118 @@ export default function InboundLeadsPanel({
         )}
       </div>
 
-      {/* Loading skeleton */}
-      {isLoading && !allPrimary.length && (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
-          <Loader2 size={24} className="animate-spin opacity-30" />
-          <p className="text-xs font-label">Loading your queue…</p>
-        </div>
-      )}
+      {/* ── Queue view ── */}
+      {view === 'queue' && (
+        <>
+          {isLoading && !allPrimary.length && (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">
+              <Loader2 size={24} className="animate-spin opacity-30" />
+              <p className="text-xs font-label">Loading your queue…</p>
+            </div>
+          )}
 
-      {/* New leads */}
-      {newLeads.length > 0 && (
-        <div>
-          <div className="px-5 py-2.5 bg-primary/5 border-b border-primary/10">
-            <p className="text-[9px] font-black uppercase tracking-widest text-primary font-label flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse inline-block" />
-              {newLeads.length} New · Ready for Action
-            </p>
-          </div>
-          {newLeads.map(lead => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              isReviewed={false}
+          {newLeads.length > 0 && (
+            <div>
+              <div className="px-5 py-2.5 bg-primary/5 border-b border-primary/10">
+                <p className="text-[9px] font-black uppercase tracking-widest text-primary font-label flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse inline-block" />
+                  {newLeads.length} New · Ready for Action
+                </p>
+              </div>
+              {newLeads.map(lead => (
+                <LeadCard
+                  key={lead.id}
+                  lead={lead}
+                  isReviewed={false}
+                  onOpen={setSelectedLead}
+                  onMarkReviewed={onMarkReviewed}
+                  onStartSequence={onStartSequence}
+                  onLaunchHunter={onLaunchHunter}
+                />
+              ))}
+            </div>
+          )}
+
+          {reviewed.length > 0 && (
+            <ReviewedQueue
+              leads={reviewed}
+              onOpen={setSelectedLead}
               onMarkReviewed={onMarkReviewed}
               onStartSequence={onStartSequence}
               onLaunchHunter={onLaunchHunter}
             />
-          ))}
-        </div>
+          )}
+
+          {!isLoading && !isProcessing && allPrimary.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <Mail size={32} className="opacity-20 mb-3" />
+              <p className="text-sm font-label font-medium">Queue is clear</p>
+              <p className="text-xs text-slate-300 mt-1">New leads will appear here automatically</p>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Reviewed */}
-      {reviewed.length > 0 && (
-        <div>
-          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100">
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 font-label">
-              Reviewed · {reviewed.length}
-            </p>
+      {/* ── Details view ── */}
+      {view === 'details' && (
+        <>
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3 px-5 py-4 border-b border-slate-100">
+            {[
+              { label: 'Needs Resolution', value: needsResolution.length, color: 'text-amber-600', bg: 'bg-amber-50' },
+              { label: 'Low Quality',       value: lowQuality.length,      color: 'text-slate-500', bg: 'bg-slate-50' },
+              { label: 'Reviewed',          value: reviewed.length,        color: 'text-primary',   bg: 'bg-primary/5' },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className={cn('rounded-xl p-3 flex flex-col gap-0.5', bg)}>
+                <span className={cn('text-xl font-black font-headline leading-none', color)}>{value}</span>
+                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 font-label leading-tight">{label}</span>
+              </div>
+            ))}
           </div>
-          {reviewed.map(lead => (
-            <LeadCard
-              key={lead.id}
-              lead={lead}
-              isReviewed={true}
-              onMarkReviewed={onMarkReviewed}
-              onStartSequence={onStartSequence}
-              onLaunchHunter={onLaunchHunter}
-            />
-          ))}
-        </div>
-      )}
 
-      {/* Empty state */}
-      {!isLoading && !isProcessing && allPrimary.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <Mail size={32} className="opacity-20 mb-3" />
-          <p className="text-sm font-label font-medium">Queue is clear</p>
-          <p className="text-xs text-slate-300 mt-1">New leads will appear here automatically</p>
-        </div>
-      )}
+          <SecondaryQueue
+            title="Needs Resolution"
+            leads={needsResolution}
+            icon={AlertTriangle}
+            accentClass="text-amber-600"
+            reviewedIds={reviewedIds}
+            onOpen={setSelectedLead}
+            onMarkReviewed={onMarkReviewed}
+            onStartSequence={onStartSequence}
+            onLaunchHunter={onLaunchHunter}
+          />
+          <SecondaryQueue
+            title="Low Quality"
+            leads={lowQuality}
+            icon={XCircle}
+            accentClass="text-slate-500"
+            reviewedIds={reviewedIds}
+            onOpen={setSelectedLead}
+            onMarkReviewed={onMarkReviewed}
+            onStartSequence={onStartSequence}
+            onLaunchHunter={onLaunchHunter}
+          />
+          <SecondaryQueue
+            title="Reviewed"
+            leads={reviewed}
+            icon={CheckCircle2}
+            accentClass="text-primary"
+            reviewedIds={reviewedIds}
+            onOpen={setSelectedLead}
+            onMarkReviewed={onMarkReviewed}
+            onStartSequence={onStartSequence}
+            onLaunchHunter={onLaunchHunter}
+          />
 
-      {/* Secondary queues */}
-      <SecondaryQueue
-        title="Needs Resolution"
-        leads={needsResolution}
-        icon={AlertTriangle}
-        accentClass="text-amber-600"
-        reviewedIds={reviewedIds}
-        onMarkReviewed={onMarkReviewed}
-        onStartSequence={onStartSequence}
-        onLaunchHunter={onLaunchHunter}
-      />
-      <SecondaryQueue
-        title="Low Quality"
-        leads={lowQuality}
-        icon={XCircle}
-        accentClass="text-slate-500"
-        reviewedIds={reviewedIds}
-        onMarkReviewed={onMarkReviewed}
-        onStartSequence={onStartSequence}
-        onLaunchHunter={onLaunchHunter}
-      />
+          {needsResolution.length === 0 && lowQuality.length === 0 && reviewed.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <CheckCircle2 size={32} className="opacity-20 mb-3" />
+              <p className="text-sm font-label font-medium">Nothing to review</p>
+              <p className="text-xs text-slate-300 mt-1">All leads have been processed cleanly</p>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

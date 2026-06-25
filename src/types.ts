@@ -1,4 +1,4 @@
-export type View = 'pipeline' | 'deals' | 'quotes' | 'accounts' | 'manager-insights' | 'meetings' | 'memory' | 'users' | 'memory-library';
+export type View = 'pipeline' | 'deals' | 'opportunities' | 'quotes' | 'accounts' | 'manager-insights' | 'meetings' | 'memory' | 'users' | 'memory-library' | 'sequence-activity';
 
 // ─── Agent Memory ─────────────────────────────────────────────────────────────
 
@@ -109,6 +109,7 @@ export interface Signal {
 export interface HunterPick {
   id: string;
   name: string;
+  title?: string;
   company: string;
   urgency: string;
   signal: string;
@@ -333,6 +334,10 @@ export interface ProcessedInboundLead {
   routing_queue: string | null;
   contact_validated: boolean;
   is_existing_customer: boolean;
+  marketo_signal: string | null;
+  marketo_program: string | null;
+  account_match: boolean;
+  meeting_secured: boolean;
   persona_tier: string | null;
   intent_signal: string | null;
   priority_score: number | null;

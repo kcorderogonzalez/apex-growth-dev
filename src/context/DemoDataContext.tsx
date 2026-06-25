@@ -185,6 +185,7 @@ function toUiPick(p: PriorityOutreachPick & { _receivedAt?: string }): HunterPic
   return {
     id: p.id,
     name: p.contactName,
+    title: p.contactTitle,
     company: p.company,
     urgency: p.urgency,
     signal: p.signalLabel,

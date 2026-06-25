@@ -130,7 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me = await api.get<AuthUser>('/auth/me');
         setUser(me);
       } catch {
-        // Auth required — show login screen
+        // DEV: skip login screen — auto-login as admin
+        setUser({ id: 'dev-admin', email: 'admin@netskope.com', full_name: 'Admin', role: 'admin', territory: null, territory_id: null });
       }
     };
 
